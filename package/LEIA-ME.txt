@@ -1,0 +1,27 @@
+ETS2 Tire Wear - versao alpha
+=============================
+
+Mostra os pneus do seu caminhao e das suas carretas gastos de acordo com o
+desgaste real do jogo (telemetria). Os pneus do trafego ficam como estao.
+
+Testado so no Euro Truck Simulator 2 1.61, Windows 10/11, DirectX 11.
+
+INSTALAR (com o jogo fechado)
+1. Copie plugins\ets2_tire_wear.dll para
+   <pasta do jogo>\bin\win_x64\plugins\
+   (crie a pasta "plugins" se nao existir)
+   Exemplo Steam: C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\
+2. Copie a pasta TireWear inteira para
+   Documentos\Euro Truck Simulator 2\
+   (fica Documentos\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini etc.)
+3. Abra o jogo. Na primeira vez ele avisa que um plugin usa o SDK
+   ("advanced SDK features"): confirme com OK.
+
+DESINSTALAR
+Apague plugins\ets2_tire_wear.dll e a pasta Documentos\Euro Truck Simulator 2\TireWear.
+
+PROBLEMAS
+Envie o arquivo Documentos\Euro Truck Simulator 2\TireWear\present_probe.log
+junto com a descricao do problema (modelo do caminhao/pneu e o que aconteceu).
+
+Mais detalhes no README do projeto.

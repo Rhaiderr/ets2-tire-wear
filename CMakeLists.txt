@@ -1,0 +1,48 @@
+﻿cmake_minimum_required(VERSION 3.20)
+project(ets2_tire_wear LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# MinHook (BSD-2, v1.3.4) as a static library.
+add_library(minhook STATIC
+    third_party/minhook/src/buffer.c
+    third_party/minhook/src/hook.c
+    third_party/minhook/src/trampoline.c
+    third_party/minhook/src/hde/hde64.c)
+target_include_directories(minhook PUBLIC third_party/minhook/include)
+
+# Dear ImGui (MIT, v1.92.9b): core + DX11 renderer backend only (no input backend).
+add_library(imgui STATIC
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_dx11.cpp)
+target_include_directories(imgui PUBLIC third_party/imgui)
+target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_DEMO_WINDOWS IMGUI_DISABLE_DEBUG_TOOLS IMGUI_DISABLE_WIN32_FUNCTIONS)
+
+# SCS Telemetry SDK headers are not in the repository (see README, "Compilar").
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/scs_sdk/include/scssdk.h")
+    message(FATAL_ERROR "SCS SDK headers not found: extract the SCS Telemetry SDK so that "
+                        "third_party/scs_sdk/include/scssdk.h exists (see README).")
+endif()
+
+# The game loads the plugin as a plain DLL exporting scs_telemetry_init/shutdown.
+add_library(ets2_tire_wear SHARED src/plugin.cpp src/present_probe.cpp src/overlay.cpp src/tire_probe.cpp
+    src/wear_transform.cpp src/player_tracker.cpp
+    src/exports.def)
+target_include_directories(ets2_tire_wear PRIVATE third_party/scs_sdk/include)
+target_compile_definitions(ets2_tire_wear PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+target_compile_options(ets2_tire_wear PRIVATE /W4 /permissive-)
+target_link_libraries(ets2_tire_wear PRIVATE minhook imgui delayimp)
+# d3dcompiler_47.dll (used by the ImGui DX11 backend) only loads when the HUD starts.
+target_link_options(ets2_tire_wear PRIVATE /DELAYLOAD:d3dcompiler_47.dll)
+set_target_properties(ets2_tire_wear PROPERTIES OUTPUT_NAME "ets2_tire_wear")
+
+# Output stays inside the project; nothing is copied to the game folder.
+set_target_properties(ets2_tire_wear PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/out"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/out")

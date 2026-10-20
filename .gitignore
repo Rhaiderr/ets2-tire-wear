@@ -1,0 +1,15 @@
+# Build output and release packages
+/build/
+/dist/
+*.obj
+*.exe
+*.pdb
+*.ilk
+
+# Local work: backups, extracted game files, captures and previews
+/backups/
+/probe/
+
+# Third-party binaries and headers that are not redistributed here
+/tools/extractor/
+/third_party/scs_sdk/
