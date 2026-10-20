@@ -1,5 +1,5 @@
 # Builds the release zip: the DLL (catalog built in), the read-me and the
-# licence. Usage: tools\package.ps1 -Version 0.1.1-alpha
+# licence. Usage: tools\package.ps1 -Version 0.2.0-alpha
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Project = (Resolve-Path "$PSScriptRoot\..").Path

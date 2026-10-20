@@ -1,20 +1,17 @@
-# R5c: per-mip check of every colour/normal pair of catalog\tire_regions.csv
+# R5c: per-mip check of every colour/normal pair of catalog\<game>\tire_regions.csv
 # (wearpreview ... mips: each mip transformed on its own, as in the game).
 # Sheets of 11 pairs, one row each: mips 0-3 at 0% then at 100%.
 # Read-only on the catalog and the extracted textures.
 param(
+    [ValidateSet('ets2', 'ats')][string]$Game = 'ets2',
     [string]$Project = (Resolve-Path "$PSScriptRoot\..\..").Path
 )
 $tool = "$Project\tools\wearpreview\wearpreview.exe"
-$out = "$Project\probe\previews\r5d\mips"
+$out = "$Project\probe\previews\r5d\$Game\mips"
 New-Item -ItemType Directory -Force $out | Out-Null
-$roots = @{
-    'base_vehicle' = "$Project\probe\extracted"
-    'dlc_goodyear' = "$Project\probe\extracted_dlc_goodyear"
-    'dlc_michelin' = "$Project\probe\extracted_dlc_michelin"
-}
+$roots = . "$PSScriptRoot\roots.ps1" $Project $Game
 $items = @()
-Import-Csv "$Project\catalog\tire_regions.csv" | ForEach-Object {
+Import-Csv "$Project\catalog\$Game\tire_regions.csv" | ForEach-Object {
     $src, $crel = $_.color -split ':', 2
     $nrel = ($_.normal -split ':', 2)[1]
     $c = Join-Path $roots[$src] ($crel.TrimStart('/') -replace '/', '\')

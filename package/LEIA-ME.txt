@@ -1,25 +1,33 @@
-ETS2 Tire Wear - alpha
-======================
+ETS2 & ATS Tire Wear - alpha
+============================
 
 EN: Shows your truck and trailer tires worn according to the real in-game
-wear. Traffic keeps its tires. Tested only on ETS2 1.61, DirectX 11.
+wear, in Euro Truck Simulator 2 and American Truck Simulator. Traffic keeps
+its tires. Tested only on ETS2 1.61 and ATS 1.61, DirectX 11.
+Tire mods are not supported yet: a modded tire keeps its original look.
 
 PT: Mostra os pneus do seu caminhao e das suas carretas gastos de acordo com
-o desgaste real do jogo. O trafego fica como esta. Testado so no ETS2 1.61,
+o desgaste real do jogo, no Euro Truck Simulator 2 e no American Truck
+Simulator. O trafego fica como esta. Testado so no ETS2 1.61 e no ATS 1.61,
 DirectX 11.
+Pneus de mods ainda nao sao compativeis: um pneu de mod fica com a aparencia
+original.
 
 INSTALL / INSTALAR (game closed / jogo fechado)
 Copy ets2_tire_wear.dll to / Copie ets2_tire_wear.dll para:
   <game folder / pasta do jogo>\bin\win_x64\plugins\
   (create "plugins" if needed / crie a pasta "plugins" se nao existir)
-  Steam: C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\
+  ETS2 (Steam): C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\
+  ATS  (Steam): C:\Program Files (x86)\Steam\steamapps\common\American Truck Simulator\bin\win_x64\plugins\
+  The same DLL works in both games / A mesma DLL serve nos dois jogos.
 Start the game and accept the "advanced SDK features" warning.
 Abra o jogo e confirme o aviso "advanced SDK features".
 
-Settings and logs / Configuracao e logs:
-  Documents\Euro Truck Simulator 2\TireWear\ (created on first run / criada na primeira execucao)
+Settings and logs / Configuracao e logs (created on first run / criada na primeira execucao):
+  Documents\Euro Truck Simulator 2\TireWear\
+  Documents\American Truck Simulator\TireWear\
 
 UNINSTALL / DESINSTALAR
-Delete / Apague plugins\ets2_tire_wear.dll and / e Documents\Euro Truck Simulator 2\TireWear.
+Delete / Apague plugins\ets2_tire_wear.dll and / e Documents\<game / jogo>\TireWear.
 
 https://github.com/Rhaiderr/ets2-tire-wear

@@ -47,6 +47,10 @@ struct Hook {
 };
 constexpr int kMaxHooks = 2 + 2 * kCtxFnCount;
 
+// Picks the built-in catalog (catalog/ets2 or catalog/ats). Call before LoadCatalog.
+enum class Game { kEts2, kAts };
+void SetGame(Game game);
+
 // Loads TireWear\tire_textures.csv; returns the number of textures or -1.
 int LoadCatalog(const std::wstring& csv_path, std::string* error);
 

@@ -1,20 +1,17 @@
-# R5c: previews of every colour/normal pair of catalog\tire_regions.csv with
+# R5c: previews of every colour/normal pair of catalog\<game>\tire_regions.csv with
 # its tread rectangle, and contact sheets of the current look at 0, 57 and
 # 100% (one repetition of the tread tile each), 3 tires per row, 4 rows per
 # sheet. Read-only on the catalog and the extracted textures.
 param(
+    [ValidateSet('ets2', 'ats')][string]$Game = 'ets2',
     [string]$Project = (Resolve-Path "$PSScriptRoot\..\..").Path
 )
 $tool = "$Project\tools\wearpreview\wearpreview.exe"
-$out = "$Project\probe\previews\r5d\all"
+$out = "$Project\probe\previews\r5d\$Game\all"
 New-Item -ItemType Directory -Force $out | Out-Null
-$roots = @{
-    'base_vehicle' = "$Project\probe\extracted"
-    'dlc_goodyear' = "$Project\probe\extracted_dlc_goodyear"
-    'dlc_michelin' = "$Project\probe\extracted_dlc_michelin"
-}
+$roots = . "$PSScriptRoot\roots.ps1" $Project $Game
 $items = @()
-Import-Csv "$Project\catalog\tire_regions.csv" | ForEach-Object {
+Import-Csv "$Project\catalog\$Game\tire_regions.csv" | ForEach-Object {
     $src, $crel = $_.color -split ':', 2
     $nrel = ($_.normal -split ':', 2)[1]
     $c = Join-Path $roots[$src] ($crel.TrimStart('/') -replace '/', '\')
@@ -39,13 +36,15 @@ for ($s = 0; $s -lt $sheets; $s++) {
         $img = [System.Drawing.Image]::FromFile("$out\$($items[$i])_compare.bmp")
         # compare.bmp: 5 cells of width tw (+12 gap), rows of 2 tiles (+12 gap)
         $tw = ($img.Width - 48) / 5; $th = ($img.Height - 12) / 4
-        $cellW = [int]($cellH * $tw / $th)
+        # wide tiles (most ATS tires) shrink to fit 3 cells in the 500 px column
+        $cellW = [math]::Min([int]($cellH * $tw / $th), 160)
+        $dh = [int]($cellW * $th / $tw)
         $ox = ($k % $perRow) * 500; $oy = [math]::Floor($k / $perRow) * ($cellH + $head + $gap)
         $g.DrawString($items[$i], $font, [System.Drawing.Brushes]::Black, [float]$ox, [float]$oy)
         $j = 0
         foreach ($col in 0, 2, 4) {
             $src = New-Object System.Drawing.RectangleF ([float]($col * ($tw + 12))), ([float](2 * $th + 12)), ([float]$tw), ([float]$th)
-            $dst = New-Object System.Drawing.RectangleF ([float]($ox + $j * ($cellW + 4))), ([float]($oy + $head)), ([float]$cellW), ([float]$cellH)
+            $dst = New-Object System.Drawing.RectangleF ([float]($ox + $j * ($cellW + 4))), ([float]($oy + $head)), ([float]$cellW), ([float]$dh)
             $g.DrawImage($img, $dst, $src, [System.Drawing.GraphicsUnit]::Pixel)
             $j++
         }

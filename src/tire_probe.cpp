@@ -29,8 +29,11 @@
 #include <vector>
 
 namespace catalog_data {
-extern const unsigned char kTireTextures[];  // catalog/tire_textures.csv, zero-terminated
-extern const unsigned char kTireRegions[];   // catalog/tire_regions.csv, zero-terminated
+// catalog/<game>/tire_textures.csv and tire_regions.csv, zero-terminated.
+extern const unsigned char kEts2TireTextures[];
+extern const unsigned char kEts2TireRegions[];
+extern const unsigned char kAtsTireTextures[];
+extern const unsigned char kAtsTireRegions[];
 }  // namespace catalog_data
 
 namespace tire_probe {
@@ -1108,9 +1111,11 @@ struct Detours {
 uint64_t g_stats_frames0 = 0, g_stats_draws0[2] = {}, g_stats_tire0 = 0, g_stats_swapped0 = 0;
 uint64_t g_stats_player0 = 0, g_stats_traffic0 = 0;
 
+Game g_game = Game::kEts2;
+
 // The CSV at csv_path when it exists (lets a user add tires without a new
 // build), otherwise the copy built into the DLL (catalog_data.cpp, made by
-// CMake from catalog/*.csv).
+// CMake from catalog/<game>/*.csv).
 std::unique_ptr<std::istream> OpenCsv(const std::wstring& csv_path, const unsigned char* built_in, const char* what) {
     auto file = std::make_unique<std::ifstream>(csv_path);
     if (*file) {
@@ -1122,8 +1127,12 @@ std::unique_ptr<std::istream> OpenCsv(const std::wstring& csv_path, const unsign
 
 }  // namespace
 
+void SetGame(Game game) { g_game = game; }
+
 int LoadCatalog(const std::wstring& csv_path, std::string* error) {
-    std::unique_ptr<std::istream> src = OpenCsv(csv_path, catalog_data::kTireTextures, "catalog");
+    std::unique_ptr<std::istream> src = OpenCsv(
+        csv_path, g_game == Game::kAts ? catalog_data::kAtsTireTextures : catalog_data::kEts2TireTextures,
+        g_game == Game::kAts ? "catalog (ATS)" : "catalog (ETS2)");
     std::istream& in = *src;
     if (!in) {
         *error = "cannot open catalog";
@@ -1163,7 +1172,9 @@ int LoadCatalog(const std::wstring& csv_path, std::string* error) {
 }
 
 int LoadRegions(const std::wstring& csv_path, std::string* error) {
-    std::unique_ptr<std::istream> src = OpenCsv(csv_path, catalog_data::kTireRegions, "tread regions");
+    std::unique_ptr<std::istream> src = OpenCsv(
+        csv_path, g_game == Game::kAts ? catalog_data::kAtsTireRegions : catalog_data::kEts2TireRegions,
+        "tread regions");
     std::istream& in = *src;
     if (!in) {
         *error = "cannot open regions";

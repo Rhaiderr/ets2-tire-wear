@@ -18,6 +18,7 @@
 #include <string>
 
 #include "scssdk_telemetry.h"
+#include "amtrucks/scssdk_ats.h"
 #include "eurotrucks2/scssdk_eut2.h"
 #include "eurotrucks2/scssdk_telemetry_eut2.h"
 #include "common/scssdk_telemetry_common_configs.h"
@@ -36,6 +37,7 @@ constexpr double kLogIntervalSec = 1.0;
 
 struct State {
     scs_log_t log = nullptr;
+    bool ats = false;  // American Truck Simulator (game_id "ats"); otherwise ETS2
     FILE* csv = nullptr;
     bool paused = true;
     float speed_ms = 0.f;
@@ -72,8 +74,10 @@ std::wstring DocumentsDir() {
     return out;
 }
 
+// Each game keeps its own settings and logs, next to its own profiles.
 std::wstring TireWearDir() {
-    std::wstring dir = DocumentsDir() + L"\\Euro Truck Simulator 2\\TireWear";
+    std::wstring dir = DocumentsDir() + (g.ats ? L"\\American Truck Simulator" : L"\\Euro Truck Simulator 2") +
+                       L"\\TireWear";
     CreateDirectoryW(dir.c_str(), nullptr);
     return dir;
 }
@@ -295,11 +299,14 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
         std::to_string(SCS_GET_MINOR_VERSION(p->common.game_version)) + " telemetry_api=" +
         std::to_string(SCS_GET_MAJOR_VERSION(version)) + "." + std::to_string(SCS_GET_MINOR_VERSION(version)));
 
-    if (strcmp(p->common.game_id, SCS_GAME_ID_EUT2) != 0)
-        Log(SCS_LOG_TYPE_warning, "not ETS2; continuing anyway (read-only logger)");
+    g.ats = strcmp(p->common.game_id, SCS_GAME_ID_ATS) == 0;
+    if (!g.ats && strcmp(p->common.game_id, SCS_GAME_ID_EUT2) != 0)
+        Log(SCS_LOG_TYPE_warning, "unknown game; using the ETS2 folder and catalog");
+    tire_probe::SetGame(g.ats ? tire_probe::Game::kAts : tire_probe::Game::kEts2);
 
     if (!OpenCsv()) {
-        Log(SCS_LOG_TYPE_error, "cannot open CSV in Documents\\Euro Truck Simulator 2\\TireWear");
+        Log(SCS_LOG_TYPE_error, std::string("cannot open CSV in Documents\\") +
+                                    (g.ats ? "American Truck Simulator" : "Euro Truck Simulator 2") + "\\TireWear");
         return SCS_RESULT_generic_error;
     }
 
