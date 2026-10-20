@@ -1,27 +1,25 @@
-ETS2 Tire Wear - versao alpha
-=============================
+ETS2 Tire Wear - alpha
+======================
 
-Mostra os pneus do seu caminhao e das suas carretas gastos de acordo com o
-desgaste real do jogo (telemetria). Os pneus do trafego ficam como estao.
+EN: Shows your truck and trailer tires worn according to the real in-game
+wear. Traffic keeps its tires. Tested only on ETS2 1.61, DirectX 11.
 
-Testado so no Euro Truck Simulator 2 1.61, Windows 10/11, DirectX 11.
+PT: Mostra os pneus do seu caminhao e das suas carretas gastos de acordo com
+o desgaste real do jogo. O trafego fica como esta. Testado so no ETS2 1.61,
+DirectX 11.
 
-INSTALAR (com o jogo fechado)
-1. Copie plugins\ets2_tire_wear.dll para
-   <pasta do jogo>\bin\win_x64\plugins\
-   (crie a pasta "plugins" se nao existir)
-   Exemplo Steam: C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\
-2. Copie a pasta TireWear inteira para
-   Documentos\Euro Truck Simulator 2\
-   (fica Documentos\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini etc.)
-3. Abra o jogo. Na primeira vez ele avisa que um plugin usa o SDK
-   ("advanced SDK features"): confirme com OK.
+INSTALL / INSTALAR (game closed / jogo fechado)
+Copy ets2_tire_wear.dll to / Copie ets2_tire_wear.dll para:
+  <game folder / pasta do jogo>\bin\win_x64\plugins\
+  (create "plugins" if needed / crie a pasta "plugins" se nao existir)
+  Steam: C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\
+Start the game and accept the "advanced SDK features" warning.
+Abra o jogo e confirme o aviso "advanced SDK features".
 
-DESINSTALAR
-Apague plugins\ets2_tire_wear.dll e a pasta Documentos\Euro Truck Simulator 2\TireWear.
+Settings and logs / Configuracao e logs:
+  Documents\Euro Truck Simulator 2\TireWear\ (created on first run / criada na primeira execucao)
 
-PROBLEMAS
-Envie o arquivo Documentos\Euro Truck Simulator 2\TireWear\present_probe.log
-junto com a descricao do problema (modelo do caminhao/pneu e o que aconteceu).
+UNINSTALL / DESINSTALAR
+Delete / Apague plugins\ets2_tire_wear.dll and / e Documents\Euro Truck Simulator 2\TireWear.
 
-Mais detalhes no README do projeto.
+https://github.com/Rhaiderr/ets2-tire-wear

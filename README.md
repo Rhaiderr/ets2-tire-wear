@@ -2,6 +2,10 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
+[![Download](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?include_prereleases&label=Download&style=for-the-badge&logo=github)](https://github.com/Rhaiderr/ets2-tire-wear/releases)
+
+**Install:** copy `ets2_tire_wear.dll` from the zip into `<game folder>\bin\win_x64\plugins\` and start the game ([details](#installation)).
+
 > **Alpha release.** It works on my setup but is still being tested by other people. Use it in single player, and back up your profile if you want to be extra safe.
 
 A plugin for **Euro Truck Simulator 2** that makes the tires of **your** truck and **your** trailers look worn according to the game's **real wear**. The game already tracks the wear of every wheel (you can see it in the service menu), but the tire always looks brand new. With this plugin the tread gradually loses its pattern until it is almost bald.
@@ -48,11 +52,12 @@ A plugin for **Euro Truck Simulator 2** that makes the tires of **your** truck a
 
 ## Installation
 
-1. Download the latest `.zip` from **[Releases](../../releases)**.
-2. With the game **closed**, copy `plugins\ets2_tire_wear.dll` to `<game folder>\bin\win_x64\plugins\`. Create the `plugins` folder if it does not exist.
+1. Download the latest `.zip` from **[Releases](https://github.com/Rhaiderr/ets2-tire-wear/releases)**.
+2. With the game **closed**, copy `ets2_tire_wear.dll` to `<game folder>\bin\win_x64\plugins\`. Create the `plugins` folder if it does not exist.
    - Example (Steam): `C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\`
-3. Copy the whole **`TireWear`** folder to `Documents\Euro Truck Simulator 2\`.
-4. Start the game. The first time, it warns that a plugin uses advanced SDK features: click **OK**.
+3. Start the game. The first time, it warns that a plugin uses advanced SDK features: click **OK**.
+
+That's all: the tire catalogue is built into the DLL. On the first run the plugin creates `Documents\Euro Truck Simulator 2\TireWear\` for its settings and logs.
 
 Wear shows up as the tires wear in your save; a new tire looks unchanged. To see the effect right away, use `wear_override` (next section).
 
@@ -60,7 +65,7 @@ Wear shows up as the tires wear in your save; a new tire looks unchanged. To see
 
 ## Settings
 
-The file is `Documents\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini`. Edit it with the game closed.
+The file is `Documents\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini`, created with the defaults below on the first run. Edit it with the game closed.
 
 | Key | Default | Purpose |
 |---|---|---|
@@ -88,8 +93,8 @@ flowchart LR
     C --> S
 ```
 
-1. **Recognition:** the plugin hooks (with [MinHook](https://github.com/TsudaKageyu/minhook)) the texture uploads to the GPU and compares each one against a catalogue of hashes of the game's tire textures (`tire_textures.csv`). No game files are shipped: the catalogue only holds hashes and names.
-2. **Worn textures:** each recognised tire gets 7 increasingly worn copies. Only the tread area, defined in `tire_regions.csv`, changes. Colour and relief (normal map) are recomputed pixel by pixel and re-compressed to BC3/BC5. This runs on a background thread so the game does not stutter.
+1. **Recognition:** the plugin hooks (with [MinHook](https://github.com/TsudaKageyu/minhook)) the texture uploads to the GPU and compares each one against a catalogue of hashes of the game's tire textures (`catalog/tire_textures.csv`, built into the DLL; a file of the same name in the `TireWear` folder overrides it). No game files are shipped: the catalogue only holds hashes and names.
+2. **Worn textures:** each recognised tire gets 7 increasingly worn copies. Only the tread area, defined in `catalog/tire_regions.csv`, changes. Colour and relief (normal map) are recomputed pixel by pixel and re-compressed to BC3/BC5. This runs on a background thread so the game does not stutter.
 3. **Whose wheel is it:** at every tire draw, the plugin reads the wheel's position relative to the camera and recognises the wheel set of your truck and trailers: from the distances between wheels, from the pose given by the telemetry and, in the mirrors, from wheel pairs. Wheels that do not match your vehicles are traffic and stay as they are.
 4. **Swap:** if the wheel is yours, that draw gets the texture of the current wear level.
 
@@ -122,7 +127,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
    ```
 3. The DLL ends up in `build\out\ets2_tire_wear.dll`. To build the release zip:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.1.0-alpha
+   powershell -File tools\package.ps1 -Version 0.1.1-alpha
    ```
 
 ### Layout
@@ -130,13 +135,12 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 | Folder | Contents |
 |---|---|
 | `src/` | The plugin: telemetry (`plugin.cpp`), D3D11/DXGI hooks (`present_probe.cpp`, `tire_probe.cpp`), wear transform (`wear_transform.cpp`), player vs traffic separation (`player_tracker.cpp`), optional panel (`overlay.cpp`) |
-| `catalog/` | Tire texture hashes and the tread rectangle of each |
-| `package/` | Default INI and the zip's read-me |
+| `catalog/` | Tire texture hashes and the tread rectangle of each (built into the DLL) |
+| `package/` | The zip's read-me |
 | `tools/` | Dev tools: `wearpreview` (previews and transform benchmark), `trackertest` (tests the separation on captures), `tirecat` (builds the catalogue from the game's extracted files) |
 | `third_party/` | MinHook 1.3.4 (BSD-2) and Dear ImGui 1.92.9b (MIT) |
 
 ## Licences and credits
 
-- This project: [MIT](LICENSE).
-- [MinHook](https://github.com/TsudaKageyu/minhook): BSD 2-Clause. [Dear ImGui](https://github.com/ocornut/imgui): MIT. Their licences are in `third_party/` and in the zip.
+- This project: [MIT](LICENSE). The same file carries the notices of the two libraries built into the DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) and [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
 - Euro Truck Simulator 2, Goodyear and Michelin are trademarks of their owners. This project is not affiliated with SCS Software or the tire makers, and ships no game files.

@@ -2,6 +2,10 @@
 
 [English](README.md) | **Português (Brasil)**
 
+[![Download](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?include_prereleases&label=Download&style=for-the-badge&logo=github)](https://github.com/Rhaiderr/ets2-tire-wear/releases)
+
+**Instalar:** copie o `ets2_tire_wear.dll` do zip para `<pasta do jogo>\bin\win_x64\plugins\` e abra o jogo ([detalhes](#instalação)).
+
 > **Versão alpha.** Funciona no meu ambiente, mas ainda está sendo testada com outras pessoas. Use em single player e faça backup do seu perfil se quiser segurança extra.
 
 Plugin para **Euro Truck Simulator 2** que mostra os pneus do **seu** caminhão e das **suas** carretas gastos de acordo com o **desgaste real** do jogo. O jogo já calcula o desgaste de cada roda (você vê no menu de manutenção), mas o pneu continua visualmente novo. Com o plugin, a banda de rodagem vai perdendo o desenho até ficar quase lisa.
@@ -46,11 +50,12 @@ Plugin para **Euro Truck Simulator 2** que mostra os pneus do **seu** caminhão 
 
 ## Instalação
 
-1. Baixe o `.zip` mais recente em **[Releases](../../releases)**.
-2. Com o jogo **fechado**, copie `plugins\ets2_tire_wear.dll` para `<pasta do jogo>\bin\win_x64\plugins\`. Crie a pasta `plugins` se ela não existir.
+1. Baixe o `.zip` mais recente em **[Releases](https://github.com/Rhaiderr/ets2-tire-wear/releases)**.
+2. Com o jogo **fechado**, copie `ets2_tire_wear.dll` para `<pasta do jogo>\bin\win_x64\plugins\`. Crie a pasta `plugins` se ela não existir.
    - Exemplo (Steam): `C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\`
-3. Copie a pasta **`TireWear`** inteira para `Documentos\Euro Truck Simulator 2\`.
-4. Abra o jogo. Na primeira vez aparece o aviso de que um plugin usa recursos avançados do SDK: confirme com **OK**.
+3. Abra o jogo. Na primeira vez aparece o aviso de que um plugin usa recursos avançados do SDK: confirme com **OK**.
+
+Só isso: o catálogo de pneus vem dentro da DLL. Na primeira execução o plugin cria `Documentos\Euro Truck Simulator 2\TireWear\` para a configuração e os logs.
 
 O desgaste aparece conforme o pneu desgasta no seu save. Num pneu novo não muda nada. Para ver o efeito na hora, use `wear_override` (próxima seção).
 
@@ -58,7 +63,7 @@ O desgaste aparece conforme o pneu desgasta no seu save. Num pneu novo não muda
 
 ## Configuração
 
-O arquivo fica em `Documentos\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini`. Edite com o jogo fechado.
+O arquivo fica em `Documentos\Euro Truck Simulator 2\TireWear\ets2_tire_wear.ini` e é criado com os valores padrão abaixo na primeira execução. Edite com o jogo fechado.
 
 | Chave | Padrão | Para que serve |
 |---|---|---|
@@ -86,8 +91,8 @@ flowchart LR
     C --> S
 ```
 
-1. **Reconhecimento:** o plugin intercepta (com [MinHook](https://github.com/TsudaKageyu/minhook)) o envio de texturas para a placa de vídeo e compara cada uma com um catálogo de hashes das texturas de pneu do jogo (`tire_textures.csv`). Nenhum arquivo do jogo vai junto: o catálogo tem só hashes e nomes.
-2. **Texturas gastas:** para cada pneu reconhecido, gera 7 cópias com desgaste crescente. Só a área da banda de rodagem muda, definida em `tire_regions.csv`. A cor e o relevo (mapa normal) são recalculados pixel a pixel e recomprimidos em BC3/BC5. Isso roda numa thread separada para não travar o jogo.
+1. **Reconhecimento:** o plugin intercepta (com [MinHook](https://github.com/TsudaKageyu/minhook)) o envio de texturas para a placa de vídeo e compara cada uma com um catálogo de hashes das texturas de pneu do jogo (`catalog/tire_textures.csv`, embutido na DLL; um arquivo com o mesmo nome na pasta `TireWear` tem prioridade). Nenhum arquivo do jogo vai junto: o catálogo tem só hashes e nomes.
+2. **Texturas gastas:** para cada pneu reconhecido, gera 7 cópias com desgaste crescente. Só a área da banda de rodagem muda, definida em `catalog/tire_regions.csv`. A cor e o relevo (mapa normal) são recalculados pixel a pixel e recomprimidos em BC3/BC5. Isso roda numa thread separada para não travar o jogo.
 3. **De quem é a roda:** a cada desenho de pneu, o plugin lê a posição da roda em relação à câmera e reconhece o conjunto de rodas do caminhão e das carretas: pela distância entre elas, pela pose vinda da telemetria e, nos retrovisores, por pares de rodas. Rodas que não batem com os seus veículos são tráfego e ficam como estão.
 4. **Troca:** se a roda é sua, a textura daquele desenho é trocada pela versão do nível de desgaste atual.
 
@@ -120,7 +125,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
    ```
 3. A DLL fica em `build\out\ets2_tire_wear.dll`. Para montar o zip de release:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.1.0-alpha
+   powershell -File tools\package.ps1 -Version 0.1.1-alpha
    ```
 
 ### Estrutura
@@ -128,13 +133,12 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 | Pasta | Conteúdo |
 |---|---|
 | `src/` | Plugin: telemetria (`plugin.cpp`), hooks D3D11/DXGI (`present_probe.cpp`, `tire_probe.cpp`), transformação de desgaste (`wear_transform.cpp`), separação jogador × tráfego (`player_tracker.cpp`) e painel opcional (`overlay.cpp`) |
-| `catalog/` | Hashes das texturas de pneu e retângulo da banda de cada uma |
-| `package/` | INI padrão e LEIA-ME do zip |
+| `catalog/` | Hashes das texturas de pneu e retângulo da banda de cada uma (embutidos na DLL) |
+| `package/` | LEIA-ME do zip |
 | `tools/` | Ferramentas de desenvolvimento: `wearpreview` (prévias e benchmark da transformação), `trackertest` (testa a separação com capturas), `tirecat` (gera o catálogo a partir dos arquivos extraídos do jogo) |
 | `third_party/` | MinHook 1.3.4 (BSD-2) e Dear ImGui 1.92.9b (MIT) |
 
 ## Licenças e créditos
 
-- Este projeto: [MIT](LICENSE).
-- [MinHook](https://github.com/TsudaKageyu/minhook): BSD 2-Clause. [Dear ImGui](https://github.com/ocornut/imgui): MIT. As licenças estão em `third_party/` e no zip.
+- Este projeto: [MIT](LICENSE). O mesmo arquivo traz os avisos das duas bibliotecas embutidas na DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
 - Euro Truck Simulator 2, Goodyear e Michelin são marcas dos seus donos. Este projeto não tem ligação com a SCS Software nem com os fabricantes de pneus, e não distribui arquivos do jogo.

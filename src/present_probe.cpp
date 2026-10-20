@@ -1,4 +1,4 @@
-﻿// Present hook plan, tests A and B.
+// Present hook plan, tests A and B.
 //
 // The game creates its swap chain before SDK plugins load, and a dxgi.dll
 // wrapper (SnowyMoon) sits in the game folder. To learn where the system
@@ -471,12 +471,12 @@ Config LoadConfig(const std::wstring& tirewear_dir) {
     const std::wstring ini = tirewear_dir + L"\\ets2_tire_wear.ini";
     if (GetFileAttributesW(ini.c_str()) == INVALID_FILE_ATTRIBUTES) {
         if (FILE* f = _wfopen(ini.c_str(), L"wb")) {
-            fputs("; ets2_tire_wear settings\r\n"
+            fputs("; ets2_tire_wear settings (created by the plugin: worn tires on, tests off)\r\n"
                   "[present]\r\n"
                   "; 1 = after the world loads, locate the system DXGI Present and log it\r\n"
-                  "probe = 0\r\n"
+                  "probe = 1\r\n"
                   "; 1 = also detour Present (count frames); needs probe = 1\r\n"
-                  "hook = 0\r\n"
+                  "hook = 1\r\n"
                   "; 1 = draw the wear HUD from the Present detour; needs hook = 1\r\n"
                   "overlay = 0\r\n"
                   "; HUD font scale and top-left position in pixels\r\n"
@@ -486,25 +486,25 @@ Config LoadConfig(const std::wstring& tirewear_dir) {
                   "; seconds to wait after the first unpaused frame\r\n"
                   "delay_s = 10\r\n"
                   "[tires]\r\n"
-                  "; 1 = R2: hook early (at plugin load) and log tire textures / draws; needs hook = 1\r\n"
-                  "log = 0\r\n"
-                  "; 1 = write a one-frame capture of tire draws, capture_delay_s after the first unpaused frame\r\n"
+                  "; 1 = hook early (at plugin load) and recognise the tire textures; needs hook = 1\r\n"
+                  "log = 1\r\n"
+                  "; 1 = write a capture of tire draws, capture_delay_s after the first unpaused frame (diagnosis)\r\n"
                   "capture = 0\r\n"
                   "capture_delay_s = 30\r\n"
                   "; second capture (0 = none), e.g. while driving\r\n"
                   "capture2_delay_s = 0\r\n"
                   "; consecutive frames per capture (1-60); more than 1 also logs what the separation saw\r\n"
                   "capture_frames = 1\r\n"
-                  "; 1 = R5: draw tires worn according to the telemetry wear; needs log = 1\r\n"
-                  "wear_levels = 0\r\n"
+                  "; 1 = draw tires worn according to the telemetry wear; needs log = 1\r\n"
+                  "wear_levels = 1\r\n"
                   "; number of wear levels (level 0 = the game's own texture)\r\n"
                   "levels = 8\r\n"
                   "; test only: 0.0 ... 1.0 forces this wear on every tire; -1 = use the telemetry\r\n"
                   "wear_override = -1\r\n"
                   "; test only: 1 = worn tire colour painted magenta\r\n"
                   "tint_test = 0\r\n"
-                  "; 1 = R4b: only the player's truck and trailers wear (traffic keeps the game's tires)\r\n"
-                  "separate = 0\r\n",
+                  "; 1 = only the player's truck and trailers wear (traffic keeps the game's tires)\r\n"
+                  "separate = 1\r\n",
                   f);
             fclose(f);
         }

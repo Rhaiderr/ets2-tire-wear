@@ -28,6 +28,11 @@
 #include <unordered_map>
 #include <vector>
 
+namespace catalog_data {
+extern const unsigned char kTireTextures[];  // catalog/tire_textures.csv, zero-terminated
+extern const unsigned char kTireRegions[];   // catalog/tire_regions.csv, zero-terminated
+}  // namespace catalog_data
+
 namespace tire_probe {
 
 const char* CtxFnName(int fn) {
@@ -1103,10 +1108,23 @@ struct Detours {
 uint64_t g_stats_frames0 = 0, g_stats_draws0[2] = {}, g_stats_tire0 = 0, g_stats_swapped0 = 0;
 uint64_t g_stats_player0 = 0, g_stats_traffic0 = 0;
 
+// The CSV at csv_path when it exists (lets a user add tires without a new
+// build), otherwise the copy built into the DLL (catalog_data.cpp, made by
+// CMake from catalog/*.csv).
+std::unique_ptr<std::istream> OpenCsv(const std::wstring& csv_path, const unsigned char* built_in, const char* what) {
+    auto file = std::make_unique<std::ifstream>(csv_path);
+    if (*file) {
+        Log(std::string("tires: ") + what + " from the TireWear folder");
+        return file;
+    }
+    return std::make_unique<std::istringstream>(std::string(reinterpret_cast<const char*>(built_in)));
+}
+
 }  // namespace
 
 int LoadCatalog(const std::wstring& csv_path, std::string* error) {
-    std::ifstream in(csv_path);
+    std::unique_ptr<std::istream> src = OpenCsv(csv_path, catalog_data::kTireTextures, "catalog");
+    std::istream& in = *src;
     if (!in) {
         *error = "cannot open catalog";
         return -1;
@@ -1145,7 +1163,8 @@ int LoadCatalog(const std::wstring& csv_path, std::string* error) {
 }
 
 int LoadRegions(const std::wstring& csv_path, std::string* error) {
-    std::ifstream in(csv_path);
+    std::unique_ptr<std::istream> src = OpenCsv(csv_path, catalog_data::kTireRegions, "tread regions");
+    std::istream& in = *src;
     if (!in) {
         *error = "cannot open regions";
         return -1;
