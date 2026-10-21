@@ -2,11 +2,14 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
-[![Download](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?include_prereleases&label=Download&style=for-the-badge&logo=github)](https://github.com/Rhaiderr/ets2-tire-wear/releases)
+[![Download ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Download%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 
-**Install:** copy `ets2_tire_wear.dll` from the zip into `<game folder>\bin\win_x64\plugins\` (ETS2 or ATS) and start the game ([details](#installation)).
+**[⬇ Download the latest version (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [all versions](https://github.com/Rhaiderr/ets2-tire-wear/releases) · **Pix (Brazil):** `fe1a4c11-6bb5-4844-b687-1f9143512862`
 
-> **Alpha release.** It works on my setup but is still being tested by other people. Use it in single player, and back up your profile if you want to be extra safe.
+**Install:** copy **both files** from the zip, `ets2_tire_wear.dll` and `ets2_tire_wear.ini`, into `<game folder>\bin\win_x64\plugins\` (ETS2 or ATS) and start the game ([details](#installation)).
+
+> **Beta release.** Tested on ETS2 1.61 and ATS 1.61, on the keyboard and a Logitech G923 wheel. Use it in single player, and back up your profile if you want to be extra safe.
 
 > **Tires can blow out.** From 60% wear, a tire may blow while you drive: the truck pulls to one side and is held to 60 km/h until you replace the tires. This is on by default. To turn it off, set `[blowout] enabled = 0` in the INI ([details](#tire-blowouts)).
 
@@ -122,22 +125,22 @@ On a force feedback wheel, the pull is a **force on the wheel itself**: it turns
 
 ## Installation
 
-1. Download the latest `.zip` from **[Releases](https://github.com/Rhaiderr/ets2-tire-wear/releases)**.
-2. With the game **closed**, copy `ets2_tire_wear.dll` to `<game folder>\bin\win_x64\plugins\`. Create the `plugins` folder if it does not exist.
+1. Download **[ets2-tire-wear.zip](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** (the latest version; older ones are in [Releases](https://github.com/Rhaiderr/ets2-tire-wear/releases)).
+2. With the game **closed**, copy both files from the zip, `ets2_tire_wear.dll` and `ets2_tire_wear.ini`, to `<game folder>\bin\win_x64\plugins\`. Create the `plugins` folder if it does not exist.
    - ETS2 (Steam): `C:\Program Files (x86)\Steam\steamapps\common\Euro Truck Simulator 2\bin\win_x64\plugins\`
    - ATS (Steam): `C:\Program Files (x86)\Steam\steamapps\common\American Truck Simulator\bin\win_x64\plugins\`
-   - Playing both? Copy the same DLL into each game's `plugins` folder.
+   - Playing both? Copy the same two files into each game's `plugins` folder.
 3. Start the game. The first time, it warns that a plugin uses advanced SDK features: click **OK**.
 
-That's all: the tire catalogues of both games are built into the DLL. On the first run the plugin creates a `TireWear` folder for its settings and logs next to the game's profiles: `Documents\Euro Truck Simulator 2\TireWear\` or `Documents\American Truck Simulator\TireWear\`. Below, `Documents\<game>\TireWear` means the folder of the game you play.
+That's all: the tire catalogues of both games are built into the DLL, and the settings are the `ets2_tire_wear.ini` next to it. Logs and the blowout state go to a `TireWear` folder, created next to the game's profiles: `Documents\Euro Truck Simulator 2\TireWear\` or `Documents\American Truck Simulator\TireWear\`. Below, `Documents\<game>\TireWear` means the folder of the game you play.
 
 Wear shows up as the tires wear in your save; a new tire looks unchanged. To see the effect right away, use `wear_override` (next section).
 
-**Uninstall:** delete `ets2_tire_wear.dll` from the `plugins` folder and the `Documents\<game>\TireWear` folder.
+**Uninstall:** delete `ets2_tire_wear.dll` and `ets2_tire_wear.ini` from the `plugins` folder and the `Documents\<game>\TireWear` folder.
 
 ## Settings
 
-The file is `Documents\<game>\TireWear\ets2_tire_wear.ini` (one per game), created with the defaults below on the first run. Every key has a comment explaining it. Edit it with the game closed.
+The file is the `ets2_tire_wear.ini` in the `plugins` folder (it comes in the zip, one per game). Without it, the plugin creates and uses `Documents\<game>\TireWear\ets2_tire_wear.ini`, as in earlier versions; `game.log.txt` tells which one is in use (the `settings:` line). Every key has a comment explaining it. Edit it with the game closed.
 
 | Section | Key | Default | Purpose |
 |---|---|---|---|
@@ -227,7 +230,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
    ```
 3. The DLL ends up in `build\out\ets2_tire_wear.dll`. To build the release zip:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.2.0-alpha
+   powershell -File tools\package.ps1 -Version 0.3.0-beta
    ```
 
 ### Layout

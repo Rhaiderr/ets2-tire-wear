@@ -468,8 +468,7 @@ bool g_wd_stalled = false;
 
 }  // namespace
 
-Config LoadConfig(const std::wstring& tirewear_dir) {
-    const std::wstring ini = tirewear_dir + L"\\ets2_tire_wear.ini";
+Config LoadConfig(const std::wstring& ini) {
     if (GetFileAttributesW(ini.c_str()) == INVALID_FILE_ATTRIBUTES) {
         if (FILE* f = _wfopen(ini.c_str(), L"wb")) {
             fputs("; ets2_tire_wear settings (created by the plugin: worn tires on, tests off)\r\n"

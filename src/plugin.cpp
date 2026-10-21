@@ -130,6 +130,23 @@ std::wstring TireWearDir() {
     return dir;
 }
 
+// T7: an ets2_tire_wear.ini next to this DLL (the game's plugins folder,
+// where the release zip puts it) wins. Otherwise the one in TireWear, which
+// the plugin creates when missing: that folder is always writable, unlike a
+// plugins folder under Program Files. Logs and state always go to TireWear.
+std::wstring IniPath() {
+    wchar_t self[MAX_PATH] = {};
+    HMODULE mod = nullptr;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(&IniPath), &mod) &&
+        GetModuleFileNameW(mod, self, MAX_PATH)) {
+        std::wstring next = self;
+        next = next.substr(0, next.rfind(L'\\')) + L"\\ets2_tire_wear.ini";
+        if (GetFileAttributesW(next.c_str()) != INVALID_FILE_ATTRIBUTES) return next;
+    }
+    return TireWearDir() + L"\\ets2_tire_wear.ini";
+}
+
 // T5: the game's language from its config.cfg (`uset g_lang "pt_br"`, or
 // `g_lang_init` [verified: vega 122, ETS2 and ATS]). Notices are in Portuguese
 // for pt_br/pt_pt and in English for any other language.
@@ -320,7 +337,7 @@ void BlowoutLog(const std::string& msg) {
 }
 
 void LoadBlowoutParams() {
-    const std::wstring ini = TireWearDir() + L"\\ets2_tire_wear.ini";
+    const std::wstring ini = IniPath();
     const wchar_t* file = ini.c_str();
     auto number = [&](const wchar_t* key, float fallback) {
         wchar_t buf[32] = {};
@@ -782,7 +799,11 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_brake, SCS_VALUE_TYPE_float, OnFloat, &g.effective_brake);
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_light_brake, SCS_VALUE_TYPE_bool, OnBool, &g.light_brake);
 
-    g.probe_cfg = present_probe::LoadConfig(TireWearDir());  // also creates the INI when missing
+    const std::wstring ini = IniPath();
+    g.probe_cfg = present_probe::LoadConfig(ini);  // also creates the INI when missing
+    char ini_utf8[MAX_PATH * 3] = {};
+    WideCharToMultiByte(CP_UTF8, 0, ini.c_str(), -1, ini_utf8, sizeof(ini_utf8), nullptr, nullptr);
+    Log(SCS_LOG_TYPE_message, std::string("settings: ") + ini_utf8);
     g.lang_pt = GameLanguagePt();
     Log(SCS_LOG_TYPE_message, std::string("notice language: ") + (g.lang_pt ? "Portuguese" : "English"));
     LoadBlowoutParams();

@@ -32,8 +32,8 @@ struct Config {
     bool separate = false;       // R4b: only the player's tires, each with its unit's wear (needs wear_levels)
 };
 
-// Reads TireWear\ets2_tire_wear.ini (creating it with the worn tires on if missing).
-Config LoadConfig(const std::wstring& tirewear_dir);
+// Reads the settings file `ini` (creating it with the worn tires on if missing).
+Config LoadConfig(const std::wstring& ini);
 
 // Starts the probe on a background thread (one shot).
 void Start(const std::wstring& tirewear_dir, const Config& config);
