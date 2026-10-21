@@ -35,6 +35,7 @@
 #include "overlay.h"
 #include "player_tracker.h"
 #include "present_probe.h"
+#include "tire_audio.h"
 #include "tire_probe.h"
 
 namespace {
@@ -77,13 +78,19 @@ struct State {
     bool test_done = false;
     // E2: the effect of a blown tire, fed back as driver input.
     bool steerable[tracker::kMaxUnits][tracker::kMaxWheels] = {};
-    float input_steering = 0.f, effective_steering = 0.f, effective_throttle = 0.f, effective_brake = 0.f;
+    float input_steering = 0.f, effective_steering = 0.f, input_throttle = 0.f, effective_throttle = 0.f,
+          effective_brake = 0.f;
     bool truck_blew = false, trailer_blew = false;  // a tire blew this frame
     bool light_brake = false;
     std::chrono::steady_clock::time_point effect_last{}, effect_last_log{};
     bool effect_stopped = false;  // Ctrl+Shift+B, for the rest of the session
     bool stop_key_down = false;
     bool effect_logged_idle = true;
+    // E4a: the bang and the flapping tire, locked to the blown wheel's rotation.
+    bool sound = true;
+    float sound_volume = 0.8f, flap_volume = 0.6f;
+    float wheel_rotation[tracker::kMaxUnits][tracker::kMaxWheels] = {};  // turns, 0 ... 1
+    float wheel_rps[tracker::kMaxUnits][tracker::kMaxWheels] = {};       // turns per second
 };
 
 State g;
@@ -302,7 +309,7 @@ void LoadBlowoutParams() {
     p.test_trailer = _wcsicmp(unit, L"trailer") == 0;
     p.test_wheel = static_cast<int>(GetPrivateProfileIntW(L"blowout", L"test_wheel", -1, file));
     g_blowout.SetParams(p);
-    char msg[320];
+    char msg[400];
     snprintf(msg, sizeof(msg), "%s, start_wear %.2f, km_at_100 %.0f, curve %.1f", p.enabled ? "on" : "off", p.start_wear,
              p.km_at_100, p.curve);
     std::string text = msg;
@@ -331,15 +338,30 @@ void LoadBlowoutParams() {
     e.trailer_hold = std::clamp(effect_number(L"trailer_hold", e.trailer_hold), 0.f, 1.f);
     e.truck_trailer_hold = std::clamp(effect_number(L"truck_trailer_hold", e.truck_trailer_hold), 0.f, 1.f);
     e.trailer_pedal = std::clamp(effect_number(L"trailer_pedal", e.trailer_pedal), 0.f, 1.f);
+    e.limit_truck_kmh = std::max(10.f, effect_number(L"limit_truck_kmh", e.limit_truck_kmh));
+    e.limit_trailer_kmh = std::max(10.f, effect_number(L"limit_trailer_kmh", e.limit_trailer_kmh));
+    e.governor_kmh = std::clamp(effect_number(L"governor_kmh", e.governor_kmh), 0.f, 30.f);
+    e.limit_brake_after_kmh = std::clamp(effect_number(L"limit_brake_after_kmh", e.limit_brake_after_kmh), 0.f, 50.f);
+    e.limit_band_kmh = std::max(1.f, effect_number(L"limit_band_kmh", e.limit_band_kmh));
+    e.limit_brake = std::clamp(effect_number(L"limit_brake", e.limit_brake), 0.f, 1.f);
+    e.wobble = std::clamp(effect_number(L"wobble", e.wobble), 0.f, 0.2f);
     e.min_speed_kmh = std::max(0.f, effect_number(L"min_speed_kmh", e.min_speed_kmh));
     e.full_speed_kmh = std::max(1.f, effect_number(L"full_speed_kmh", e.full_speed_kmh));
     e.steer_invert = GetPrivateProfileIntW(L"effect", L"steer_invert", 0, file) == 1;
     g_effect.SetParams(e);
+    g.sound = GetPrivateProfileIntW(L"effect", L"sound", 1, file) == 1;
+    g.sound_volume = std::clamp(effect_number(L"sound_volume", g.sound_volume), 0.f, 1.f);
+    g.flap_volume = std::clamp(effect_number(L"flap_volume", g.flap_volume), 0.f, 1.f);
+    char sound[32] = "off";
+    if (g.sound) snprintf(sound, sizeof(sound), "%.2f (flap %.2f)", g.sound_volume, g.flap_volume);
     snprintf(msg, sizeof(msg),
              "%s, pull %.2f (rear x%.2f, kick x%.1f for %.1f s), brake tap %.2f for %.1f s, throttle cut %.2f "
-             "(trailer %.2f), trailer_hold %.2f (truck tire %.2f) + pedal %.2f%s",
+             "(trailer %.2f), trailer_hold %.2f (truck tire %.2f) + pedal %.2f, limit %.0f/%.0f km/h "
+             "(governor %.0f km/h, brake %.2f from +%.0f over %.0f km/h), wobble %.3f, sound %s%s",
              e.enabled ? "on" : "off", e.pull, e.pull_rear, e.kick, e.kick_s, e.kick_brake, e.kick_brake_s,
              e.throttle_cut, e.trailer_throttle_cut, e.trailer_hold, e.truck_trailer_hold, e.trailer_pedal,
+             e.limit_truck_kmh, e.limit_trailer_kmh, e.governor_kmh, e.limit_brake, e.limit_brake_after_kmh,
+             e.limit_band_kmh, e.wobble, sound,
              e.steer_invert ? ", steer inverted" : "");
     Log(SCS_LOG_TYPE_message, std::string("effect: ") + msg);
 }
@@ -414,6 +436,7 @@ void BlowoutStep(const float* wear, const tracker::Unit* units) {
         if (ch == blowout::Change::kBlown) {
             changed = true;
             (u == 0 ? g.truck_blew : g.trailer_blew) = true;
+            if (g.sound && !g.paused && g_effect.params().enabled) tire_audio::Bang(g.sound_volume);
             char msg[256];
             snprintf(msg, sizeof(msg), "%s tire blew: wheel %d (%s) at %.1f%% wear, odometer %.1f km%s [%s]",
                      UnitName(u, false).c_str(), b.wheel, WheelText(where, false).c_str(), wear[u] * 100.f,
@@ -456,10 +479,12 @@ void EffectStep(const tracker::Unit* units) {
     in.truck_blew = g.truck_blew;
     in.trailer_blew = g.trailer_blew;
     in.trailer_attached = g.trailer_connected[0];
+    int heard_unit = -1, heard_wheel = -1;  // the blown wheel we hear (the truck's first)
     for (int u = 0; u < tracker::kMaxUnits; ++u) {
         if (units[u].wheel_count <= 0 || g.unit_key[u].empty()) continue;
         const blowout::Burst b = g_blowout.Get(g.unit_key[u]);
         if (!b.active || b.wheel < 0 || b.wheel >= units[u].wheel_count) continue;
+        if (heard_unit < 0) heard_unit = u, heard_wheel = b.wheel;
         if (u == 0) {
             in.truck = true;
             in.truck_steered = g.steerable[0][b.wheel];
@@ -469,6 +494,10 @@ void EffectStep(const tracker::Unit* units) {
         }
     }
     const effect::Output out = g_effect.Update(in, dt);
+    // The torn tire slapping the road, in step with that wheel's rotation.
+    const bool flapping = heard_unit >= 0 && in.allow && g.sound && g_effect.params().enabled;
+    tire_audio::SetWheel(flapping, flapping ? g.wheel_rotation[heard_unit][heard_wheel] : 0.0,
+                         flapping ? g.wheel_rps[heard_unit][heard_wheel] : 0.0, g.flap_volume);
     g_input[kInSteering] = out.steering;
     g_input[kInThrottle] = out.throttle;
     g_input[kInBrake] = out.brake;
@@ -493,17 +522,17 @@ void EffectStep(const tracker::Unit* units) {
     if (FILE* f = _wfopen((TireWearDir() + L"\\effect.log").c_str(), L"ab")) {
         if (g.effect_logged_idle)
             fprintf(f, "time,speed_kmh,source,allow,send_steering,send_throttle,send_brake,send_trailer_brake,"
-                       "input_steering,effective_steering,effective_throttle,effective_brake,light_brake\n");
+                       "input_steering,effective_steering,input_throttle,effective_throttle,effective_brake,light_brake\n");
         g.effect_logged_idle = false;
         SYSTEMTIME st;
         GetLocalTime(&st);
         const char* source = in.truck ? (in.truck_steered ? (in.truck_left ? "truck_steered_left" : "truck_steered_right")
                                                           : (in.truck_left ? "truck_left" : "truck_right"))
                                       : in.trailer ? "trailer" : "-";
-        fprintf(f, "%02d:%02d:%02d.%03d,%.1f,%s%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", st.wHour,
+        fprintf(f, "%02d:%02d:%02d.%03d,%.1f,%s%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", st.wHour,
                 st.wMinute, st.wSecond, st.wMilliseconds, in.speed_kmh, source, in.truck && in.trailer ? "+trailer" : "",
                 in.allow ? 1 : 0, out.steering, out.throttle, out.brake, out.trailer_brake, g.input_steering,
-                g.effective_steering, g.effective_throttle, g.effective_brake, g.light_brake ? 1 : 0);
+                g.effective_steering, g.input_throttle, g.effective_throttle, g.effective_brake, g.light_brake ? 1 : 0);
         fclose(f);
     }
 }
@@ -665,6 +694,21 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_input_steering, SCS_VALUE_TYPE_float, OnFloat, &g.input_steering);
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_steering, SCS_VALUE_TYPE_float, OnFloat,
                     &g.effective_steering);
+    // E4a: every wheel's rotation, for the sound of a blown one.
+    for (scs_u32_t w = 0; w < tracker::kMaxWheels; ++w) {
+        reg(SCS_TELEMETRY_TRUCK_CHANNEL_wheel_rotation, w, SCS_VALUE_TYPE_float, SCS_TELEMETRY_CHANNEL_FLAG_none, OnFloat,
+            &g.wheel_rotation[0][w]);
+        reg(SCS_TELEMETRY_TRUCK_CHANNEL_wheel_velocity, w, SCS_VALUE_TYPE_float, SCS_TELEMETRY_CHANNEL_FLAG_none, OnFloat,
+            &g.wheel_rps[0][w]);
+        for (int i = 0; i < kMaxTrailers && 1 + i < tracker::kMaxUnits; ++i) {
+            const std::string base = "trailer." + std::to_string(i) + ".wheel.";
+            reg((base + "rotation").c_str(), w, SCS_VALUE_TYPE_float, SCS_TELEMETRY_CHANNEL_FLAG_none, OnFloat,
+                &g.wheel_rotation[1 + i][w]);
+            reg((base + "angular_velocity").c_str(), w, SCS_VALUE_TYPE_float, SCS_TELEMETRY_CHANNEL_FLAG_none, OnFloat,
+                &g.wheel_rps[1 + i][w]);
+        }
+    }
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_input_throttle, SCS_VALUE_TYPE_float, OnFloat, &g.input_throttle);
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_throttle, SCS_VALUE_TYPE_float, OnFloat,
                     &g.effective_throttle);
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_brake, SCS_VALUE_TYPE_float, OnFloat, &g.effective_brake);
@@ -697,6 +741,7 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
 }
 
 SCSAPI_VOID scs_telemetry_shutdown(void) {
+    tire_audio::Stop();
     present_probe::Stop();
     FlushProbeMessages();
     if (g.csv) {

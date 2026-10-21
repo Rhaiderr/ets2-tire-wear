@@ -42,7 +42,11 @@ Output Shaper::Update(const Input& in, double dt) {
         // left tire pulls left.
         float side = in.truck_left ? -1.f : 1.f;
         if (p_.steer_invert) side = -side;
-        target.steering = std::clamp(side * pull * pull_factor, -1.f, 1.f);
+        // The flapping tire: about one shake per wheel turn.
+        const double hz = std::min(8.0, speed / 3.6 / 3.2);  // ~1 m tire: 3.2 m per turn
+        wobble_phase_ = std::fmod(wobble_phase_ + dt * hz * 6.283185307179586, 6.283185307179586);
+        const float shake = p_.wobble * static_cast<float>(std::sin(wobble_phase_));
+        target.steering = std::clamp(side * pull * pull_factor + shake * pull_factor, -1.f, 1.f);
         target.throttle = -Clamp01(p_.throttle_cut) * drag_factor;
         if (in.trailer_attached) target.trailer_brake = Clamp01(p_.truck_trailer_hold) * drag_factor;
     }
@@ -53,6 +57,20 @@ Output Shaper::Update(const Input& in, double dt) {
     }
     if ((in.truck || in.trailer) && since_burst_ < p_.kick_brake_s)
         target.brake = std::max(target.brake, Clamp01(p_.kick_brake) * drag_factor);
+    // Speed limit. A governor first: from governor_kmh under the limit the
+    // throttle is taken away more and more, all of it at the limit, so the
+    // truck labours and stops gaining speed (analog pedal only). The service
+    // brake (lights on) only from limit_brake_after_kmh over the limit, for
+    // the keyboard throttle the governor cannot reach [verified: E3 test].
+    if (in.truck || in.trailer) {
+        const float limit = in.truck ? p_.limit_truck_kmh : p_.limit_trailer_kmh;
+        const float cut = p_.governor_kmh > 0.f ? Clamp01((speed - (limit - p_.governor_kmh)) / p_.governor_kmh)
+                                                : (speed >= limit ? 1.f : 0.f);
+        target.throttle = std::min(target.throttle, -cut);
+        const float over = speed - limit - p_.limit_brake_after_kmh;
+        if (over > 0.f && p_.limit_band_kmh > 0.f)
+            target.brake = std::max(target.brake, Clamp01(p_.limit_brake) * Clamp01(over / p_.limit_band_kmh));
+    }
 
     // A blowout is sudden: steering reaches the kick within ~0.05 s; brakes,
     // throttle and the release are a little softer.

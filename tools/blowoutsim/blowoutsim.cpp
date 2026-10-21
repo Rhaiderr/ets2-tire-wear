@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
         o = run(in, 0.2);
         check(o.steering < -ep.pull * 1.5f && o.brake > 0.14f, "front-left tire: kick to the left + brake tap");
         o = run(in, 2.0);
-        check(std::fabs(o.steering + ep.pull) < 1e-4f && o.brake == 0.f && o.throttle < -0.19f && o.trailer_brake == 0.f,
+        check(std::fabs(o.steering + ep.pull) < ep.wobble + 1e-3f && o.brake == 0.f && o.throttle < -0.19f && o.trailer_brake == 0.f,
               "then a steady pull left + less throttle, no brake (solo truck)");
         in.trailer_attached = true;
         o = run(in, 1.0);
@@ -168,10 +168,36 @@ int main(int argc, char** argv) {
         in.trailer_attached = false;
         in.truck_left = false, in.truck_steered = false;
         o = run(in, 2.0);
-        check(std::fabs(o.steering - ep.pull * ep.pull_rear) < 1e-4f, "rear-right tire: weaker pull right");
+        check(std::fabs(o.steering - ep.pull * ep.pull_rear) < ep.wobble + 1e-3f, "rear-right tire: weaker pull right");
+        // E3: the steering shakes around the pull while driving.
+        float lo = 1.f, hi = -1.f;
+        for (int i = 0; i < 100; ++i) {
+            o = s.Update(in, 0.01);
+            lo = std::min(lo, o.steering), hi = std::max(hi, o.steering);
+        }
+        check(hi - lo > ep.wobble && hi - lo < 2.5f * ep.wobble, "the steering shakes (wobble) around the pull");
+        // E3b: speed limit, 60 km/h with a truck tire: governor first, brake last.
+        in.speed_kmh = 50.f;
+        o = run(in, 1.0);
+        check(o.brake == 0.f && std::fabs(o.throttle + ep.throttle_cut) < 1e-3f, "well under the limit: only the usual throttle cut");
+        in.speed_kmh = 57.5f;
+        o = run(in, 1.0);
+        check(o.brake == 0.f && std::fabs(o.throttle + 0.5f) < 1e-3f, "2.5 km/h under the limit: governor takes half the throttle");
+        in.speed_kmh = 64.f;
+        o = run(in, 1.0);
+        check(o.brake == 0.f && o.throttle < -0.99f, "a little over the limit: no throttle at all, still no brake (no lights)");
+        in.speed_kmh = 73.f;
+        o = run(in, 1.0);
+        check(std::fabs(o.brake - ep.limit_brake * 0.5f) < 1e-3f, "13 km/h over (keyboard): last-resort brake, half");
+        effect::Input tr;
+        tr.allow = true, tr.trailer = true, tr.speed_kmh = 65.f;
+        effect::Shaper s2;
+        o = s2.Update(tr, 0.01);
+        for (int i = 0; i < 200; ++i) o = s2.Update(tr, 0.01);
+        check(o.brake == 0.f && o.steering == 0.f, "only a trailer tire: 65 km/h is under its 70 km/h limit, no shake");
         in.speed_kmh = 3.f;
         o = run(in, 2.0);
-        check(o.throttle == 0.f && std::fabs(o.steering) < ep.pull * ep.pull_rear * 0.1f, "standing: no drag, almost no pull");
+        check(o.throttle == 0.f && std::fabs(o.steering) < ep.pull * ep.pull_rear * 0.15f, "standing: no drag, almost no pull");
         s = effect::Shaper{};
         in.speed_kmh = 60.f;
         o = run(in, 0.5);

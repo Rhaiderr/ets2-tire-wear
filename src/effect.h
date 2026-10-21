@@ -30,6 +30,19 @@ struct Params {
     float trailer_hold = 0.35f;
     float truck_trailer_hold = 0.35f;
     float trailer_pedal = 0.f;   // plus this much brake pedal all the time (lights on)
+    // E3: speed limit while a tire is blown. A throttle governor takes the
+    // throttle away from governor_kmh under the limit (all of it at the
+    // limit); only limit_brake_after_kmh over the limit the service brake
+    // (lights on) grows to limit_brake over limit_band_kmh.
+    float limit_truck_kmh = 60.f;    // a truck tire is blown
+    float limit_trailer_kmh = 70.f;  // only a trailer tire is blown
+    float governor_kmh = 5.f;
+    float limit_brake_after_kmh = 8.f;
+    float limit_band_kmh = 10.f;
+    float limit_brake = 0.3f;
+    // E3: a flapping truck tire shakes the steering: +-wobble, about once per
+    // wheel turn (~5 Hz at 60 km/h [estimate: ~1 m tire]).
+    float wobble = 0.015f;
     float min_speed_kmh = 5.f;   // no drag below this (keeps an automatic out of reverse)
     float full_speed_kmh = 40.f; // the pull grows from 0 (standing) to full at this speed
     bool steer_invert = false;   // flips the pull side if the game's sign turns out opposite
@@ -67,6 +80,7 @@ private:
     Params p_;
     Output out_;
     double since_truck_ = 1e9, since_burst_ = 1e9;  // seconds since the truck tire / any tire blew
+    double wobble_phase_ = 0.0;                     // radians
 };
 
 }  // namespace effect
