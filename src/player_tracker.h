@@ -55,8 +55,10 @@ const void* ViewportKey(const float vp[4], int run = 0);
 // obs_index (diagnostics): the draw's index among this camera's draws this frame.
 // viewport_area: width x height, tells mirrors from the main camera (pair rule).
 // axle: the wheel's axle direction in the camera (column 0 of its matrix), or null.
+// wheel (E4b, optional): which of the unit's wheels (telemetry index), -1 when not the player's.
+// reflected (E4b): the draw's matrix mirrors (negative determinant), e.g. a mirror view.
 int Classify(const void* camera_key, const float pos[3], int* obs_index = nullptr, float viewport_area = 0,
-             const float* axle = nullptr);
+             const float* axle = nullptr, int* wheel = nullptr, bool reflected = false);
 
 // Render thread: area of the largest viewport drawn this frame (the main
 // camera, with or without tires in it); mirrors are much smaller (R4c2).
@@ -68,6 +70,7 @@ void EndFrame(std::string* debug = nullptr);
 
 struct Stats {
     long long claimed = 0, unclaimed = 0, searches = 0, found = 0, completed = 0, predicted = 0, paired = 0;
+    long long flipped = 0;  // E4b: searches whose left/right had to be swapped
 };
 Stats GetStats();
 

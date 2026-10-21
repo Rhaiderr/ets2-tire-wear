@@ -32,6 +32,9 @@ struct Burst {
     int wheel = -1;     // telemetry wheel index of the unit
     float wear = 0.f;   // unit wear when it blew (a lower wear later = repaired)
     bool test = false;  // forced by the test mode: this session only, never saved
+    // E4b: the sidewall gash, drawn at the blowout.
+    float side_angle = 0.f;  // where around the sidewall (turns, 0..1)
+    float side_size = 0.5f;  // 0 = small slit ... 1 = big gash
 };
 
 enum class Change { kNone, kBlown, kRepaired };

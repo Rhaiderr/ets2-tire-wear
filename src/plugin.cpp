@@ -89,6 +89,7 @@ struct State {
     // E4a: the bang and the flapping tire, locked to the blown wheel's rotation.
     bool sound = true;
     float sound_volume = 0.8f, flap_volume = 0.6f;
+    bool visual = true;  // E4b: draw the blown wheel shredded
     float wheel_rotation[tracker::kMaxUnits][tracker::kMaxWheels] = {};  // turns, 0 ... 1
     float wheel_rps[tracker::kMaxUnits][tracker::kMaxWheels] = {};       // turns per second
 };
@@ -352,6 +353,7 @@ void LoadBlowoutParams() {
     g.sound = GetPrivateProfileIntW(L"effect", L"sound", 1, file) == 1;
     g.sound_volume = std::clamp(effect_number(L"sound_volume", g.sound_volume), 0.f, 1.f);
     g.flap_volume = std::clamp(effect_number(L"flap_volume", g.flap_volume), 0.f, 1.f);
+    g.visual = GetPrivateProfileIntW(L"effect", L"visual", 1, file) == 1;
     char sound[32] = "off";
     if (g.sound) snprintf(sound, sizeof(sound), "%.2f (flap %.2f)", g.sound_volume, g.flap_volume);
     snprintf(msg, sizeof(msg),
@@ -480,10 +482,14 @@ void EffectStep(const tracker::Unit* units) {
     in.trailer_blew = g.trailer_blew;
     in.trailer_attached = g.trailer_connected[0];
     int heard_unit = -1, heard_wheel = -1;  // the blown wheel we hear (the truck's first)
+    const bool show = g.visual && !InMultiplayer();
     for (int u = 0; u < tracker::kMaxUnits; ++u) {
-        if (units[u].wheel_count <= 0 || g.unit_key[u].empty()) continue;
-        const blowout::Burst b = g_blowout.Get(g.unit_key[u]);
-        if (!b.active || b.wheel < 0 || b.wheel >= units[u].wheel_count) continue;
+        blowout::Burst b;
+        if (units[u].wheel_count > 0 && !g.unit_key[u].empty()) b = g_blowout.Get(g.unit_key[u]);
+        const bool blown = b.active && b.wheel >= 0 && b.wheel < units[u].wheel_count;
+        // E4b: that wheel is drawn shredded, with its sidewall gash.
+        tire_probe::SetBlown(u, blown && show ? b.wheel : -1, b.side_angle, b.side_size);
+        if (!blown) continue;
         if (heard_unit < 0) heard_unit = u, heard_wheel = b.wheel;
         if (u == 0) {
             in.truck = true;

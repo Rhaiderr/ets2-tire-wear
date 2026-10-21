@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <limits>
 #include <vector>
 
@@ -51,6 +52,9 @@ Change Engine::Force(const std::string& key, float wear, int wheel_count, int wh
     b.active = true;
     b.test = test;
     b.wheel = wheel >= 0 && wheel < wheel_count ? wheel : pick(rng_);
+    std::uniform_real_distribution<float> unit(0.f, 1.f);
+    b.side_angle = unit(rng_);
+    b.side_size = unit(rng_);
     b.wear = wear < 0.f ? 0.f : wear;
     return Change::kBlown;
 }
@@ -73,6 +77,15 @@ bool Engine::Load(const std::wstring& file) {
         b.active = true;
         b.wheel = atoi(s.c_str() + t1 + 1);
         b.wear = static_cast<float>(atof(s.c_str() + t2 + 1));
+        // E4b columns (older files have none: the gash comes from the key).
+        const size_t t3 = s.find('\t', t2 + 1), t4 = t3 == std::string::npos ? t3 : s.find('\t', t3 + 1);
+        if (t4 != std::string::npos) {
+            b.side_angle = static_cast<float>(atof(s.c_str() + t3 + 1));
+            b.side_size = static_cast<float>(atof(s.c_str() + t4 + 1));
+        } else {
+            const size_t h = std::hash<std::string>()(s.substr(0, t1));
+            b.side_angle = (h & 0xffff) / 65535.f, b.side_size = ((h >> 16) & 0xffff) / 65535.f;
+        }
         state_[s.substr(0, t1)] = b;
     }
     fclose(f);
@@ -83,7 +96,8 @@ bool Engine::Save(const std::wstring& file) const {
     FILE* f = _wfopen(file.c_str(), L"wb");
     if (!f) return false;
     for (const auto& [key, b] : state_)
-        if (b.active && !b.test) fprintf(f, "%s\t%d\t%.4f\n", key.c_str(), b.wheel, b.wear);
+        if (b.active && !b.test)
+            fprintf(f, "%s\t%d\t%.4f\t%.4f\t%.4f\n", key.c_str(), b.wheel, b.wear, b.side_angle, b.side_size);
     fclose(f);
     return true;
 }

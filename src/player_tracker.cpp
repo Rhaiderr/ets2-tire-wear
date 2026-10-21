@@ -37,6 +37,7 @@ struct Obs {
     int unit = -1, wheel = -1;
     float axle[3] = {};     // R4c2: the wheel's axle direction in the camera
     bool has_axle = false;
+    bool reflected = false; // E4b: its matrix mirrors (negative determinant), as in a mirror view
 };
 
 // R4c2: a pair seen by the pair rule, waiting to be steady.
@@ -331,6 +332,50 @@ int Symmetries(int u, const int* seen, int count, int (*out)[kMaxWheels]) {
     return found;
 }
 
+// E4b: Search matches distances only, so it cannot tell a unit from its
+// mirror image, left and right wheels swapped [verified: E4b test, the right
+// front tire was drawn blown instead of the left until a re-search]. The
+// wheels lie nearly in one plane, so the mirror image still fits a proper
+// rotation, but only by turning the unit upside down. When the fitted pose
+// has the unit's up pointing down in the camera (inverted in a reflected
+// view), each wheel takes its partner on the other side. Camera y is up
+// [estimativa: R4c-a poses matched the placements with pitch/roll ~0].
+// Returns true when it swapped.
+bool FixHandedness(const Pass& pass, int u, int* assign) {
+    const int n = g_units[u].wheel_count;
+    double local[kMaxWheels][3], cam[kMaxWheels][3];
+    int count = 0, reflected = 0;
+    for (int k = 0; k < n; ++k) {
+        if (assign[k] < 0) continue;
+        const Obs& o = pass.obs[assign[k]];
+        for (int c = 0; c < 3; ++c) local[count][c] = g_units[u].wheel[k][c], cam[count][c] = o.p[c];
+        reflected += o.reflected;
+        ++count;
+    }
+    if (count < kMinWheels) return false;
+    const Pose pose = FitPose(local, cam, count);
+    const bool upside_down = pose.r.m[1][1] < 0.0;  // the unit's up (0, 1, 0) in camera y
+    if (upside_down == (2 * reflected > count)) return false;
+    // Partner: the wheel at the mirrored x, same height and axle.
+    int partner[kMaxWheels];
+    for (int k = 0; k < n; ++k) {
+        partner[k] = -1;
+        const float* a = g_units[u].wheel[k];
+        for (int j = 0; j < n && partner[k] < 0; ++j) {
+            const float* b = g_units[u].wheel[j];
+            if (std::fabs(a[0] + b[0]) < 0.15f && std::fabs(a[1] - b[1]) < 0.15f && std::fabs(a[2] - b[2]) < 0.15f)
+                partner[k] = j;
+        }
+        if (assign[k] >= 0 && partner[k] < 0) return false;  // no mirror partner: leave it
+    }
+    int swapped[kMaxWheels];
+    for (int k = 0; k < kMaxWheels; ++k) swapped[k] = -1;
+    for (int k = 0; k < n; ++k)
+        if (assign[k] >= 0) swapped[partner[k]] = assign[k];
+    for (int k = 0; k < n; ++k) assign[k] = swapped[k];
+    return true;
+}
+
 // Unit b's wheel k in unit a's frame, from the two world placements.
 void InUnit(int a, int b, int k, double* out) {
     const Unit& ua = g_units[a];
@@ -533,13 +578,15 @@ const void* ViewportKey(const float vp[4], int run) {
     return reinterpret_cast<const void*>(static_cast<uintptr_t>(h | 1));  // never null
 }
 
-int Classify(const void* camera_key, const float pos[3], int* obs_index, float viewport_area, const float* axle) {
+int Classify(const void* camera_key, const float pos[3], int* obs_index, float viewport_area, const float* axle,
+             int* wheel, bool reflected) {
     std::lock_guard<std::mutex> lock(g_mutex);
     Pass& pass = PassFor(camera_key);
     if (viewport_area > pass.area) pass.area = viewport_area;
     if (viewport_area > g_main_area) g_main_area = viewport_area;
     Obs o;
     o.p[0] = pos[0], o.p[1] = pos[1], o.p[2] = pos[2];
+    o.reflected = reflected;
     if (axle && Norm(axle) > 0.5f) {
         const float n = Norm(axle);
         for (int c = 0; c < 3; ++c) o.axle[c] = axle[c] / n;
@@ -563,6 +610,7 @@ int Classify(const void* camera_key, const float pos[3], int* obs_index, float v
     if (obs_index) *obs_index = static_cast<int>(pass.obs.size()) < kMaxObs ? static_cast<int>(pass.obs.size()) : -1;
     if (static_cast<int>(pass.obs.size()) < kMaxObs) pass.obs.push_back(o);
     (o.unit >= 0 ? g_stats.claimed : g_stats.unclaimed)++;
+    if (wheel) *wheel = o.unit >= 0 ? o.wheel : -1;
     return o.unit;
 }
 
@@ -620,9 +668,11 @@ void EndFrame(std::string* debug) {
                 for (int k = 0; k < n; ++k)
                     if (assign[k] >= 0 && was_mine[assign[k]]) overlap = true;
                 const bool adopt = got >= kMinWheels && got > claimed[u] && overlap;
+                const bool flipped = adopt && FixHandedness(pass, u, assign);
+                if (flipped) ++g_stats.flipped;
                 if (debug) {
-                    snprintf(b, sizeof(b), "    search u%d: %d of %d wheels%s", u, got, n,
-                             adopt ? "" : got >= kMinWheels ? " (kept the tracks)" : "");
+                    snprintf(b, sizeof(b), "    search u%d: %d of %d wheels%s%s", u, got, n,
+                             adopt ? "" : got >= kMinWheels ? " (kept the tracks)" : "", flipped ? " (mirror fixed)" : "");
                     *debug += b;
                     if (adopt)
                         for (int k = 0; k < n; ++k)

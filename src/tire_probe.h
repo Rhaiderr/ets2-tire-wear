@@ -76,6 +76,11 @@ void SetWearLevels(bool enabled, int levels, bool tint, float wear_override);
 // (0 = truck, 1 + i = trailer i).
 void SetUnitWear(const float* wear, int count);
 
+// E4b, game thread: the blown wheel of a unit (telemetry index, -1 = none)
+// and its sidewall gash (wear::BurstParams side_angle / side_size). That one
+// wheel is drawn shredded, once its texture is made (on the worker thread).
+void SetBlown(int unit, int wheel, float side_angle, float side_size);
+
 // R4b: give each tire draw the wear of the unit it belongs to (player_tracker)
 // and leave traffic alone. Without it, or when it fails, the texture folder
 // picks the unit (/trailer_owned/ = trailer 0, else truck). Call before the

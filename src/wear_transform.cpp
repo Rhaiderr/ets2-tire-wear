@@ -594,4 +594,261 @@ void Apply(uint32_t format, uint8_t* blocks, uint32_t width, uint32_t height, co
         }
 }
 
+namespace {
+
+// E4b: where the tread is torn off. Colour and normal map evaluate the same
+// fields at the same UV, so they always line up.
+struct Burst {
+    const Rect& r;
+    const BurstParams& p;
+    float width, height;
+    uint32_t seed;
+    float thr = 0.f;              // tear field level above which the tread is gone
+    float period = 1.f;           // cord spacing in pixels
+    float ca = 1.f, sa = 0.f;     // cord direction (cos, sin of the lean)
+
+    float Vt(float v) const { return (v - r.v0) / (r.v1 - r.v0); }
+    // Tear field: big patches (6 across the tread, 3 per tile) with a ragged
+    // edge from finer noise; periodic around the tire.
+    float Field(float u, float vt) const {
+        const float tw = r.u1 - r.u0;
+        const float fine = Fade(width * tw / 40.f);
+        return 0.7f * Noise2(u, vt, 6.f / tw, 3, seed ^ 0xb1a5u) + 0.3f * fine * Noise2(u, vt, 40.f / tw, 14, seed ^ 0x7e4du);
+    }
+    float Torn(float u, float vt) const {
+        const float t = std::clamp((Field(u, vt) - thr + p.edge) / (2.f * p.edge), 0.f, 1.f);
+        // Not right at the shoulders' edge, where the tile meets the sidewall.
+        return t * t * (3.f - 2.f * t) * Weight(u, r.v0 + (r.v1 - r.v0) * 0.5f, r, 0.03f, 0.f);
+    }
+    // Torn rubber rim just outside a tear, 0..1.
+    float Rim(float u, float vt) const {
+        const float d = thr - p.edge - Field(u, vt);
+        return d > 0.f ? std::max(0.f, 1.f - d / (2.f * p.edge)) : 0.f;
+    }
+    // Steel cords: thin bright lines, leaning from the circumference; the
+    // second belt (deeper, where the tear is deepest) leans the other way.
+    // Returns 0..1 and the slope across the lines (for the normal map).
+    float Cord(float u, float vt, bool second, float* slope) const {
+        const float x = (u - r.u0) * width, y = vt * (r.v1 - r.v0) * height;
+        // A little waviness, and patches where rubber left on the ply hides the cords.
+        const float wave = 0.25f * Noise2(u, vt, 30.f / (r.u1 - r.u0), 6, seed ^ 0x3a1u);
+        const float s = (x * ca + (second ? -y : y) * sa) / period + wave;
+        const float c = 0.5f + 0.5f * std::cos(6.2831853f * s);
+        const float c2 = c * c, c4 = c2 * c2, c8 = c4 * c4, pulse = c8 * c2;  // c^10: thin lines
+        const float bare = std::clamp(0.55f + 0.9f * Noise2(u, vt, 16.f / (r.u1 - r.u0), 8, seed ^ 0x9c3u), 0.f, 1.f);
+        const float fade = Fade(period * 0.5f);
+        *slope = fade * bare * -10.f * c8 * c * 0.5f * std::sin(6.2831853f * s);
+        return bare * (fade * pulse + (1.f - fade) * 0.18f);  // mean of c^10 when too fine to show
+    }
+};
+
+Burst MakeBurst(const Rect& r, const BurstParams& p, uint32_t width, uint32_t height) {
+    const uint32_t seed = uint32_t(r.u0 * 1e4f) * 73856093u ^ uint32_t(r.v0 * 1e4f) * 19349663u ^
+                          uint32_t(r.u1 * 1e4f) * 83492791u ^ uint32_t(r.v1 * 1e4f);
+    Burst b{r, p, float(width), float(height), seed};
+    // Threshold: the field's quantile that leaves `torn` of the tread above it.
+    std::vector<float> f;
+    for (int j = 0; j < 64; ++j)
+        for (int i = 0; i < 64; ++i) f.push_back(b.Field(r.u0 + (r.u1 - r.u0) * (i + 0.5f) / 64.f, (j + 0.5f) / 64.f));
+    std::sort(f.begin(), f.end());
+    b.thr = f[std::clamp(size_t((1.f - p.torn) * f.size()), size_t(0), f.size() - 1)];
+    // Cords: spacing from the tread width; the lean is rounded so the lines
+    // meet themselves across the tile seam.
+    b.period = std::max(0.5f, (r.u1 - r.u0) * width / std::max(1.f, p.cords));
+    const float tile_px = (r.v1 - r.v0) * height;
+    const float k = std::round(tile_px * std::sin(p.cord_angle) / b.period);
+    b.sa = std::clamp(k * b.period / std::max(1.f, tile_px), -1.f, 1.f);
+    b.ca = std::sqrt(1.f - b.sa * b.sa);
+    return b;
+}
+
+}  // namespace
+
+namespace {
+
+// The sidewall gash: a ragged lens along the circumference, open to the dark
+// inside of the tire, with the radial ply cords showing at its edges and a
+// lighter, raised rim of torn rubber. Only the blocks in its bounding box
+// are touched, so it costs little.
+struct Gash {
+    const BurstParams& p;
+    float width, height;
+    uint32_t seed;
+    float angle, half_len, half_w;  // radians, radians, UV
+
+    // Signed distance (UV) from the gash's edge: < 0 inside. Also the polar
+    // position, for the cords.
+    float Dist(float u, float v, float* phi_out, float* r_out) const {
+        const float du = u - 0.5f, dv = v - 0.5f, r = std::sqrt(du * du + dv * dv);
+        float d_phi = std::atan2(dv, du) - angle;
+        d_phi -= 6.2831853f * std::floor(d_phi / 6.2831853f + 0.5f);
+        *phi_out = d_phi, *r_out = r;
+        if (std::fabs(d_phi) >= half_len) return 1.f;
+        const float t = d_phi / half_len;
+        // Ragged: the width and the centre line wander along the gash.
+        const float rag = 1.f + 0.35f * Noise1(t + 3.f, 9.f, seed ^ 0x6a5u) + 0.15f * Noise1(t + 7.f, 31.f, seed ^ 0x2b7u);
+        const float w = half_w * std::sqrt(1.f - t * t) * rag;
+        const float rc = p.side_r + 0.25f * half_w * Noise1(t + 11.f, 4.f, seed ^ 0x1c9u);
+        return std::fabs(r - rc) - w;
+    }
+};
+
+void ApplyGash(uint32_t format, uint8_t* blocks, uint32_t width, uint32_t height, const Rect& tread,
+               const BurstParams& p, uint32_t seed) {
+    const float size = std::clamp(p.side_size, 0.f, 1.f);
+    const Gash g{p, float(width), float(height), seed, 6.2831853f * p.side_angle,
+                 0.5f * (0.3f + 1.0f * size), 0.012f + 0.026f * size};
+    const float rim_w = 0.006f;  // torn rubber rim width (UV)
+    // Bounding box of the gash and its rim.
+    float u_min = 1, u_max = 0, v_min = 1, v_max = 0;
+    for (int i = 0; i <= 16; ++i) {
+        const float a = g.angle - g.half_len + 2.f * g.half_len * i / 16.f;
+        for (float r : {p.side_r - 2.f * g.half_w - rim_w, p.side_r + 2.f * g.half_w + rim_w}) {
+            const float u = 0.5f + r * std::cos(a), v = 0.5f + r * std::sin(a);
+            u_min = std::min(u_min, u), u_max = std::max(u_max, u), v_min = std::min(v_min, v), v_max = std::max(v_max, v);
+        }
+    }
+    const uint32_t bw = (width + 3) / 4, bh = (height + 3) / 4;
+    const uint32_t bx0 = uint32_t(std::max(0.f, u_min * width / 4.f)), bx1 = std::min(bw, uint32_t(u_max * width / 4.f) + 1);
+    const uint32_t by0 = uint32_t(std::max(0.f, v_min * height / 4.f)), by1 = std::min(bh, uint32_t(v_max * height / 4.f) + 1);
+    const float px_uv = 1.f / width;
+    // Radial cords: ~2.5 px apart on mip 0, gone when finer than a pixel.
+    const float cord_period = 2.5f * 1024.f / std::max(256.f, float(width)) * px_uv;
+    const float cord_fade = Fade(cord_period * width);
+    auto inside_ring = [&](float u, float v) {
+        if (u > tread.u0 && u < tread.u1 && v > tread.v0 && v < tread.v1) return false;
+        const float du = u - 0.5f, dv = v - 0.5f, r = std::sqrt(du * du + dv * dv);
+        return r > p.side_ring_in && r < p.side_ring_out;
+    };
+    for (uint32_t by = by0; by < by1; ++by)
+        for (uint32_t bx = bx0; bx < bx1; ++bx) {
+            uint8_t* b = blocks + (size_t(by) * bw + bx) * 16;
+            if (IsNormal(format)) {
+                int nx[16], ny[16];
+                DecodeBc4(b, nx);
+                DecodeBc4(b + 8, ny);
+                bool changed = false;
+                for (int i = 0; i < 16; ++i) {
+                    const float u = (bx * 4 + i % 4 + 0.5f) / width, v = (by * 4 + i / 4 + 0.5f) / height;
+                    if (!inside_ring(u, v)) continue;
+                    float phi, r;
+                    const float d = g.Dist(u, v, &phi, &r);
+                    if (d > rim_w * 1.5f) continue;
+                    // Slope across the edge (radial): a deep step into the hole,
+                    // a raised lip of torn rubber just outside.
+                    float phi2, r2;
+                    const float dr = g.Dist(u + 0.5f * px_uv * (u - 0.5f) / std::max(r, 1e-4f),
+                                            v + 0.5f * px_uv * (v - 0.5f) / std::max(r, 1e-4f), &phi2, &r2) - d;
+                    const float edge = std::clamp(1.f - std::fabs(d) / (2.f * px_uv + 0.3f * rim_w), 0.f, 1.f);
+                    const float slope = std::clamp(dr / (0.5f * px_uv), -1.f, 1.f) * edge * 90.f;
+                    const float cu = (u - 0.5f) / std::max(r, 1e-4f), cv = (v - 0.5f) / std::max(r, 1e-4f);
+                    const float flat = d < 0.f ? 0.f : 1.f;  // the hole has no surface detail
+                    nx[i] = Clamp255(128.f + (nx[i] - 128.f) * flat + slope * cu);
+                    ny[i] = Clamp255(128.f + (ny[i] - 128.f) * flat + slope * cv);
+                    changed = true;
+                }
+                if (changed) EncodeBc4(nx, b), EncodeBc4(ny, b + 8);
+                continue;
+            }
+            int spec[16];
+            DecodeBc4(b, spec);
+            float px[16][3];
+            DecodeColor(b + 8, px);
+            bool changed = false;
+            for (int i = 0; i < 16; ++i) {
+                const float u = (bx * 4 + i % 4 + 0.5f) / width, v = (by * 4 + i / 4 + 0.5f) / height;
+                if (!inside_ring(u, v)) continue;
+                float phi, r;
+                const float d = g.Dist(u, v, &phi, &r);
+                if (d > rim_w) continue;
+                float* c = px[i];
+                if (d >= 0.f) {
+                    // Torn rubber lip: lighter, scuffed.
+                    const float lip = 1.f - d / rim_w;
+                    for (int k = 0; k < 3; ++k) c[k] = std::clamp(c[k] * (1.f + 0.7f * lip * lip), 0.f, 255.f);
+                    changed = true;
+                    continue;
+                }
+                // Hole: the dark inside of the tire; near the edge the cut ply
+                // with its radial cords (steel-grey lines across the gash).
+                const float depth = std::clamp(-d / (0.2f * g.half_w + 2.f * px_uv), 0.f, 1.f);
+                const float s = phi * r / cord_period;
+                const float cc = 0.5f + 0.5f * std::cos(6.2831853f * s);
+                const float cord = cord_fade * cc * cc * cc * cc * (1.f - depth);
+                const float l = 4.f + 10.f * (1.f - depth) + 70.f * cord;
+                for (int k = 0; k < 3; ++k) c[k] = l + (k == 0 ? 2.f : k == 2 ? -1.f : 0.f) * (1.f - cord);
+                spec[i] = Clamp255(10.f + 120.f * cord);
+                changed = true;
+            }
+            if (changed) EncodeBc4(spec, b), EncodeColor(px, b + 8);
+        }
+}
+
+}  // namespace
+
+void ApplyBurst(uint32_t format, uint8_t* blocks, uint32_t width, uint32_t height, const Rect& tread,
+                const BurstParams& p) {
+    if (!IsNormal(format) && !IsColor(format)) return;
+    const uint32_t bw = (width + 3) / 4, bh = (height + 3) / 4;
+    const Burst bu = MakeBurst(tread, p, width, height);
+    if (p.side) ApplyGash(format, blocks, width, height, tread, p, bu.seed ^ uint32_t(p.side_angle * 1e6f));
+    const float du = 1.f / width, dvt = 1.f / ((tread.v1 - tread.v0) * height);
+    for (uint32_t by = 0; by < bh; ++by)
+        for (uint32_t bx = 0; bx < bw; ++bx) {
+            if (Weight((bx * 4 + 2.f) / width, (by * 4 + 2.f) / height, tread, 0.f, 0.f) <= 0.f) continue;
+            uint8_t* b = blocks + (size_t(by) * bw + bx) * 16;
+            if (IsNormal(format)) {
+                int nx[16], ny[16];
+                DecodeBc4(b, nx);
+                DecodeBc4(b + 8, ny);
+                for (int i = 0; i < 16; ++i) {
+                    const float u = (bx * 4 + i % 4 + 0.5f) / width, vt = bu.Vt((by * 4 + i / 4 + 0.5f) / height);
+                    const float m = bu.Torn(u, vt);
+                    // The torn edge is a step down into the carcass.
+                    const float gx = bu.Torn(u + du, vt) - bu.Torn(u - du, vt);
+                    const float gy = bu.Torn(u, vt + dvt) - bu.Torn(u, vt - dvt);
+                    float slope = 0.f;
+                    if (m > 0.f) bu.Cord(u, vt, false, &slope);
+                    float x = 128.f + (nx[i] - 128.f) * (1.f - m) + p.relief * 0.5f * gx + p.cord_relief * m * slope * bu.ca;
+                    float y = 128.f + (ny[i] - 128.f) * (1.f - m) + p.relief * 0.5f * gy + p.cord_relief * m * slope * bu.sa;
+                    nx[i] = Clamp255(x), ny[i] = Clamp255(y);
+                }
+                EncodeBc4(nx, b);
+                EncodeBc4(ny, b + 8);
+                continue;
+            }
+            int spec[16];
+            DecodeBc4(b, spec);
+            float px[16][3];
+            DecodeColor(b + 8, px);
+            for (int i = 0; i < 16; ++i) {
+                const float u = (bx * 4 + i % 4 + 0.5f) / width, vt = bu.Vt((by * 4 + i / 4 + 0.5f) / height);
+                const float m = bu.Torn(u, vt), rim = bu.Rim(u, vt);
+                float* c = px[i];
+                // Torn rubber: lighter, rougher at the rim.
+                const float lift = 1.f + p.rim_light * rim;
+                if (m <= 0.f) {
+                    for (int k = 0; k < 3; ++k) c[k] = std::clamp(c[k] * lift, 0.f, 255.f);
+                    continue;
+                }
+                // Carcass: dark brown-grey ply, uneven, with the steel cords
+                // (the second belt where the tear goes deepest).
+                float slope;
+                float cord = bu.Cord(u, vt, false, &slope);
+                const float into = bu.Field(u, vt) - bu.thr;  // how far inside the tear
+                const float deep = std::clamp((into - 0.35f) / 0.1f, 0.f, 1.f);
+                cord = std::max(cord, deep * bu.Cord(u, vt, true, &slope));
+                // In the shadow of the torn wall near the edge.
+                const float shadow = 0.55f + 0.45f * std::clamp((into - p.edge) / (4.f * p.edge), 0.f, 1.f);
+                const float ply = p.carcass_l * (1.f + 0.2f * Noise2(u, vt, 120.f, 20, bu.seed ^ 0x51u));
+                const float l = (ply + (p.cord_l - ply) * cord) * shadow;
+                const float tint[3] = {4.f * (1.f - cord) - 2.f * cord, 1.f, -3.f * (1.f - cord) + 3.f * cord};
+                for (int k = 0; k < 3; ++k) c[k] = std::clamp(c[k] * lift * (1.f - m) + (l + tint[k]) * m, 0.f, 255.f);
+                spec[i] = Clamp255(spec[i] * (1.f - m) + (p.spec_carcass + (p.spec_cord - p.spec_carcass) * cord) * m);
+            }
+            EncodeBc4(spec, b);
+            EncodeColor(px, b + 8);
+        }
+}
+
 }  // namespace wear

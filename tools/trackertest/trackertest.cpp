@@ -258,8 +258,8 @@ int main(int argc, char** argv) {
         }
         tracker::EndFrame();
         const auto s = tracker::GetStats();
-        printf("  stats: claimed %lld unclaimed %lld searches %lld found %lld\n", s.claimed, s.unclaimed, s.searches,
-               s.found);
+        printf("  stats: claimed %lld unclaimed %lld searches %lld found %lld mirror-fixed %lld\n", s.claimed, s.unclaimed,
+               s.searches, s.found, s.flipped);
     }
     return 0;
 }

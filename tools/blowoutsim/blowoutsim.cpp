@@ -116,7 +116,10 @@ int main(int argc, char** argv) {
         check(e.Save(file), "state saved");
         blowout::Engine e2(2);
         e2.SetParams(p);
-        check(e2.Load(file) && e2.Get(key).active && e2.Get(key).wheel == e.Get(key).wheel, "state loaded (same wheel)");
+        check(e2.Load(file) && e2.Get(key).active && e2.Get(key).wheel == e.Get(key).wheel &&
+                  std::fabs(e2.Get(key).side_angle - e.Get(key).side_angle) < 1e-3f &&
+                  std::fabs(e2.Get(key).side_size - e.Get(key).side_size) < 1e-3f,
+              "state loaded (same wheel, same sidewall gash)");
         check(e2.Step(key, 0.93f, 4, 0.5, false) == blowout::Change::kNone, "a small wear drop is not a repair");
         check(e2.Step(key, 0.01f, 4, 0.5, false) == blowout::Change::kRepaired && !e2.Get(key).active,
               "repair (wear drops) clears it, also in multiplayer");

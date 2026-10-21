@@ -436,7 +436,109 @@ int BenchMode(const char* cpath, const char* npath, const wear::Rect& r) {
     return 0;
 }
 
+// "burst" mode (E4b): the blown, shredded tire next to the new one: tread
+// crops (two tiles high, so the seam shows) of the new tire, blown at 0% and
+// at 57% wear, then mip 2 of the blown one at its true size (seen from afar).
+int BurstMode(const char* cpath, const char* npath, const std::string& pre, const wear::Rect& r) {
+    Dds col, nrm;
+    if (!LoadDds(cpath, &col) || !LoadDds(npath, &nrm)) return 1;
+    const int rx0 = int(r.u0 * col.w), ry0 = int(r.v0 * col.h), tw = int(r.u1 * col.w) - rx0,
+              th = int(r.v1 * col.h) - ry0, gap = 12;
+    Image out;
+    out.w = tw * 3 + tw / 4 + gap * 3;
+    out.h = th * 2;
+    out.px.assign(size_t(out.w) * out.h * 3, 1.f);
+    const float wears[3] = {0.f, 0.f, wear::LevelWear(4, wear::kDefaultLevels)};
+    for (int i = 0; i < 3; ++i) {
+        Dds c = col, n = nrm;
+        wear::Apply(c.format, c.mip0.data(), c.w, c.h, r, wears[i], wear::Params());
+        wear::Apply(n.format, n.mip0.data(), n.w, n.h, r, wears[i], wear::Params());
+        if (i > 0) {
+            wear::ApplyBurst(c.format, c.mip0.data(), c.w, c.h, r);
+            wear::ApplyBurst(n.format, n.mip0.data(), n.w, n.h, r);
+        }
+        Image img = Shade(c, n);
+        for (int rep = 0; rep < 2; ++rep)
+            for (int y = 0; y < th; ++y)
+                for (int x = 0; x < tw; ++x) memcpy(out.at(i * (tw + gap) + x, rep * th + y), img.at(rx0 + x, ry0 + y), 12);
+    }
+    // Mip 2, transformed on its own like the game does, at its own size.
+    Dds c, n;
+    if (LoadDdsMip(cpath, 2, &c) && LoadDdsMip(npath, 2, &n)) {
+        wear::ApplyBurst(c.format, c.mip0.data(), c.w, c.h, r);
+        wear::ApplyBurst(n.format, n.mip0.data(), n.w, n.h, r);
+        Image img = Shade(c, n);
+        const int w = tw / 4, h = th / 4, x0 = rx0 / 4, y0 = ry0 / 4;
+        for (int rep = 0; rep < 2; ++rep)
+            for (int y = 0; y < h; ++y)
+                for (int x = 0; x < w; ++x)
+                    memcpy(out.at(3 * (tw + gap) + x, rep * h + y),
+                           img.at(std::min(img.w - 1, x0 + x), std::min(img.h - 1, y0 + y)), 12);
+    }
+    WriteBmp(pre + "_burst.bmp", out);
+
+    // The whole texture (half size) with a small, a mid and a big sidewall
+    // gash at different places, as drawn at three blowouts.
+    {
+        const float sizes[3] = {0.1f, 0.5f, 1.f}, angles[3] = {0.62f, 0.9f, 0.3f};
+        Image side;
+        side.w = (col.w / 2) * 3 + gap * 2;
+        side.h = col.h / 2;
+        side.px.assign(size_t(side.w) * side.h * 3, 1.f);
+        for (int i = 0; i < 3; ++i) {
+            Dds c2 = col, n2 = nrm;
+            wear::BurstParams bp;
+            bp.side_size = sizes[i], bp.side_angle = angles[i];
+            wear::ApplyBurst(c2.format, c2.mip0.data(), c2.w, c2.h, r, bp);
+            wear::ApplyBurst(n2.format, n2.mip0.data(), n2.w, n2.h, r, bp);
+            Image img = Shade(c2, n2);
+            if (getenv("WP_RAW")) {  // diagnosis: the colour texture alone, unlit
+                const int bw = c2.w / 4;
+                for (int by = 0; by < c2.h / 4; ++by)
+                    for (int bx = 0; bx < bw; ++bx) {
+                        int cc[48];
+                        DecodeColor4(&c2.mip0[(size_t(by) * bw + bx) * 16] + 8, cc);
+                        for (int q = 0; q < 16; ++q)
+                            for (int k = 0; k < 3; ++k) img.at(bx * 4 + q % 4, by * 4 + q / 4)[k] = cc[q * 3 + k] / 255.f;
+                    }
+            }
+            for (int y = 0; y < side.h; ++y)
+                for (int x = 0; x < col.w / 2; ++x) {
+                    float* o = side.at(i * (col.w / 2 + gap) + x, y);
+                    for (int k = 0; k < 3; ++k)
+                        o[k] = 0.25f * (img.at(2 * x, 2 * y)[k] + img.at(2 * x + 1, 2 * y)[k] + img.at(2 * x, 2 * y + 1)[k] +
+                                        img.at(2 * x + 1, 2 * y + 1)[k]);
+                }
+        }
+        WriteBmp(pre + "_side.bmp", side);
+    }
+
+    // Cost: what the plugin does once per blowout for this pair: every mip of
+    // colour and normal map.
+    {
+        std::vector<Dds> cm, nm;
+        for (int m = 0;; ++m) {
+            Dds c3, n3;
+            if (!LoadDdsMip(cpath, m, &c3) || !LoadDdsMip(npath, m, &n3) || c3.w < 4) break;
+            cm.push_back(c3), nm.push_back(n3);
+            if (c3.w == 4) break;
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        for (size_t m = 0; m < cm.size(); ++m) {
+            wear::ApplyBurst(cm[m].format, cm[m].mip0.data(), cm[m].w, cm[m].h, r);
+            wear::ApplyBurst(nm[m].format, nm[m].mip0.data(), nm[m].w, nm[m].h, r);
+        }
+        printf("BURST COST %dpx %zu mips: %.0f ms\n", col.w, cm.size(),
+               std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    }
+    printf("wrote %s_burst / _side\n", pre.c_str());
+    return 0;
+}
+
 int main(int argc, char** argv) {
+    if (argc == 9 && !strcmp(argv[8], "burst"))
+        return BurstMode(argv[1], argv[2], argv[3],
+                         wear::Rect{float(atof(argv[4])), float(atof(argv[5])), float(atof(argv[6])), float(atof(argv[7]))});
     if (argc == 9 && !strcmp(argv[8], "bench"))
         return BenchMode(argv[1], argv[2],
                          wear::Rect{float(atof(argv[4])), float(atof(argv[5])), float(atof(argv[6])), float(atof(argv[7]))});

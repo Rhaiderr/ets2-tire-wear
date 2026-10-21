@@ -259,6 +259,9 @@ int g_levels = wear::kDefaultLevels;
 bool g_tint = false;                // paint the colour of tires magenta (test only)
 std::atomic<float> g_unit_wear[tracker::kMaxUnits];  // 0 = truck, 1 + i = trailer i
 float g_wear_override = -1.f;       // >= 0 forces this wear on every tire (test)
+// E4b: per unit, the blown wheel + 1 (0 = none) and its sidewall gash.
+std::atomic<int> g_blown[tracker::kMaxUnits];
+std::atomic<float> g_blown_angle[tracker::kMaxUnits], g_blown_size[tracker::kMaxUnits];
 const wear::Params g_params;
 
 int LevelForWear(float w) {
@@ -279,11 +282,26 @@ struct Clone {
     std::atomic<bool> filled{false};
     bool Ready() const { return filled.load(std::memory_order_acquire) && pending.load(std::memory_order_acquire) == 0; }
 };
+// E4b: one mip of the game's upload, kept to make the shredded copy when a
+// tire blows (long after the upload).
+struct MipData {
+    UINT sub = 0;
+    bool has_box = false;
+    D3D11_BOX box{};
+    uint32_t format = 0, w = 0, h = 0;
+    UINT pitch = 0;
+    std::vector<uint8_t> data;
+};
 struct TireInfo {
     bool has_rect = false;
     wear::Rect rect;
     bool trailer = false;  // path under /trailer_owned/ (until R4 tells the units apart)
     Clone level[kMaxLevels];
+    // E4b: the shredded tire: the wear level it sits on and its gash are in
+    // burst_key; made once per blowout on the worker thread.
+    std::vector<MipData> orig;     // by mip, under g_mutex
+    Clone burst;
+    std::atomic<int> burst_key{-1};
 };
 std::unique_ptr<TireInfo[]> g_tires;  // index = catalog id
 std::atomic<int> g_clones_made{0};
@@ -344,6 +362,7 @@ struct ObserveInfo {
     float vp[4] = {};  // viewport x, y, w, h
     int run = 0;       // R4c2: which run of this viewport in the frame
     int obs_index = -1;
+    int wheel = -1;    // E4b: which of the unit's wheels
 };
 
 int g_run_ordinal = 0;  // R4c2: run of the current viewport (see NoteViewport)
@@ -411,7 +430,10 @@ int ObserveDraw(ID3D11DeviceContext* c, ObserveInfo* info) {
     const void* camera = tracker::ViewportKey(info->vp, g_run_ordinal);
     info->what = "read";
     const float axle[3] = {r[0], r[4], r[8]};  // the wheel's local x (its axle) in the camera
-    return tracker::Classify(camera, pos, &info->obs_index, info->vp[2] * info->vp[3], axle);
+    // E4b: a mirroring matrix (negative determinant) flips left and right.
+    const float det = r[0] * (r[5] * r[10] - r[6] * r[9]) - r[1] * (r[4] * r[10] - r[6] * r[8]) +
+                      r[2] * (r[4] * r[9] - r[5] * r[8]);
+    return tracker::Classify(camera, pos, &info->obs_index, info->vp[2] * info->vp[3], axle, &info->wheel, det < 0.f);
 }
 
 // R4c2: cameras that share a viewport (the two small mirrors: same size and
@@ -481,9 +503,8 @@ inline void NoteMap(ID3D11Resource* res, const D3D11_MAPPED_SUBRESOURCE* m) {
     g_cb_pointer[slot].store(p, std::memory_order_release);
 }
 
-// Creates the clone for (id, level) with the source texture's layout.
-bool MakeClone(ID3D11Resource* dst, int id, int level) {
-    Clone& cl = g_tires[id].level[level];
+// Creates a clone with the source texture's layout; what names it in the log.
+bool MakeClone(ID3D11Resource* dst, Clone& cl, const std::string& what) {
     ID3D11Texture2D* src = nullptr;
     if (FAILED(dst->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&src)))) return false;
     D3D11_TEXTURE2D_DESC d = {};
@@ -503,7 +524,7 @@ bool MakeClone(ID3D11Resource* dst, int id, int level) {
     if (FAILED(hr)) {
         if (tex) tex->Release();
         cl.failed = true;
-        Log("clone failed for " + g_catalog[id - 1].name + " level " + std::to_string(level));
+        Log("clone failed for " + what);
         return false;
     }
     cl.tex = tex;  // kept for the life of the process (DLL is pinned)
@@ -529,6 +550,8 @@ struct WearJob {
     wear::Rect rect;
     float wear = 0.f;
     bool tint = false;
+    bool burst = false;  // E4b: then shredded, with this gash
+    float side_angle = 0.f, side_size = 0.f;
     std::vector<uint8_t> data;
     UINT pitch = 0;
 };
@@ -548,6 +571,11 @@ void WearWorker() {
             g_jobs.pop_front();
         }
         wear::Apply(j.format, j.data.data(), j.w, j.h, j.rect, j.wear, g_params);
+        if (j.burst) {
+            wear::BurstParams bp;
+            bp.side_angle = j.side_angle, bp.side_size = j.side_size;
+            wear::ApplyBurst(j.format, j.data.data(), j.w, j.h, j.rect, bp);
+        }
         if (j.tint) {
             static const uint8_t magenta[8] = {0x1F, 0xF8, 0x1F, 0xF8, 0, 0, 0, 0};
             for (size_t o = 0; o + 16 <= j.data.size(); o += 16) memcpy(j.data.data() + o + 8, magenta, 8);
@@ -587,7 +615,7 @@ void PrepareMirrors(ID3D11Resource* dst, const Candidate& c, UINT sub, const D3D
         Clone& cl = ti.level[level];
         if (cl.failed) continue;
         if (!cl.tex) {
-            if (!MakeClone(dst, id, level)) continue;
+            if (!MakeClone(dst, cl, g_catalog[id - 1].name + " level " + std::to_string(level))) continue;
             made_any = true;
         }
         if (cl.width != c.width || cl.mips != c.mips) continue;  // another size of the same texture: leave it
@@ -602,9 +630,47 @@ void PrepareMirrors(ID3D11Resource* dst, const Candidate& c, UINT sub, const D3D
             memcpy(j.data.data() + size_t(r) * row_bytes, p + size_t(r) * row_pitch, row_bytes);
         QueueJob(std::move(j));
     }
+    // E4b: keep the game's data of this mip for a shredded copy later.
+    const Clone& first = ti.level[1];
+    if (first.tex && first.width == c.width && first.mips == c.mips) {
+        if (ti.orig.size() < c.mips) ti.orig.resize(c.mips);
+        MipData& md = ti.orig[mip];
+        md.sub = sub, md.has_box = box != nullptr;
+        if (box) md.box = *box;
+        md.format = c.format, md.w = w, md.h = h, md.pitch = row_bytes;
+        md.data.resize(size_t(row_bytes) * rows);
+        const auto* p = static_cast<const uint8_t*>(data);
+        for (uint32_t r = 0; r < rows; ++r)
+            memcpy(md.data.data() + size_t(r) * row_bytes, p + size_t(r) * row_pitch, row_bytes);
+    }
     if (made_any)
         Log("wear clones made for " + g_catalog[id - 1].name + " (levels 1-" + std::to_string(g_levels - 1) +
             (ti.trailer ? ", trailer wear" : ", truck wear") + ")");
+}
+
+// E4b: the shredded copy of tire `id` on wear `level` with the gash of `key`.
+// Render thread, at the draw of a blown wheel; queues the worker once per key.
+// Returns the copy's view when it is ready, else null (the wear level shows).
+ID3D11ShaderResourceView* BurstView(int id, int level, int key, float side_angle, float side_size) {
+    TireInfo& ti = g_tires[id];
+    if (ti.burst_key.load(std::memory_order_acquire) == key)
+        return ti.burst.Ready() ? ti.burst.srv.load(std::memory_order_acquire) : nullptr;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (ti.burst.failed || ti.orig.empty() || !ti.level[1].tex) return nullptr;
+    for (const MipData& md : ti.orig)
+        if (md.data.empty()) return nullptr;  // not every mip seen yet
+    if (!ti.burst.tex && !MakeClone(ti.level[1].tex, ti.burst, g_catalog[id - 1].name + " shredded")) return nullptr;
+    ti.burst_key.store(key, std::memory_order_release);
+    for (const MipData& md : ti.orig) {
+        WearJob j;
+        j.cl = &ti.burst, j.sub = md.sub, j.has_box = md.has_box, j.box = md.box;
+        j.format = md.format, j.w = md.w, j.h = md.h, j.rect = ti.rect, j.wear = wear::LevelWear(level, g_levels);
+        j.burst = true, j.side_angle = side_angle, j.side_size = side_size;
+        j.data = md.data, j.pitch = md.pitch;
+        QueueJob(std::move(j));
+    }
+    Log("shredded copy queued for " + g_catalog[id - 1].name + " (level " + std::to_string(level) + ")");
+    return nullptr;
 }
 
 // ---- per-context pixel shader slots (hot path) ----
@@ -882,7 +948,7 @@ struct Swap {
 // A real tire draw has the tire colour in slot 6 (slot 14 alone is a binding
 // left over from an earlier draw). Bindings are read back from D3D because
 // the runtime can unbind views behind our tracking (e.g. on OMSetRenderTargets).
-void PlanSwap(ID3D11DeviceContext* c, int unit, Swap* sw) {
+void PlanSwap(ID3D11DeviceContext* c, int unit, int wheel, Swap* sw) {
     ID3D11ShaderResourceView* bound[2] = {};
     c->PSGetShaderResources(kColorSlot, 1, &bound[0]);
     c->PSGetShaderResources(kNormalSlot, 1, &bound[1]);
@@ -891,16 +957,28 @@ void PlanSwap(ID3D11DeviceContext* c, int unit, Swap* sw) {
     // game's tire; without separation the texture folder picks the unit.
     // The normal map of the same draw follows the colour.
     int level = 0;
-    if (color_id && IsColorFormat(g_catalog[color_id - 1].format)) {
+    bool colour = color_id && IsColorFormat(g_catalog[color_id - 1].format);
+    if (colour) {
         if (unit == kUnknownUnit) level = InterimLevel(color_id);
         else if (unit >= 0) level = LevelForWear(g_unit_wear[unit].load(std::memory_order_relaxed));
     }
-    if (level > 0) {
+    // E4b: the blown wheel gets the shredded copy (on its wear level).
+    const bool blown = colour && unit >= 0 && wheel >= 0 && g_blown[unit].load(std::memory_order_relaxed) == wheel + 1;
+    float side_angle = 0.f, side_size = 0.f;
+    int key = -1;
+    if (blown) {
+        side_angle = g_blown_angle[unit].load(std::memory_order_relaxed);
+        side_size = g_blown_size[unit].load(std::memory_order_relaxed);
+        key = level | int(side_angle * 1000.f) << 4 | int(side_size * 100.f) << 14;
+    }
+    if (level > 0 || blown) {
         const UINT slots[2] = {kColorSlot, kNormalSlot};
         for (int i = 0; i < 2; ++i) {
             const int id = i == 0 ? color_id : g_srv_map.Get(bound[1]);
-            const Clone* cl = id ? &g_tires[id].level[level] : nullptr;
-            ID3D11ShaderResourceView* r = cl && cl->Ready() ? cl->srv.load(std::memory_order_acquire) : nullptr;
+            ID3D11ShaderResourceView* r = nullptr;
+            if (id && blown) r = BurstView(id, level, key, side_angle, side_size);
+            const Clone* cl = id && level > 0 ? &g_tires[id].level[level] : nullptr;
+            if (!r && cl && cl->Ready()) r = cl->srv.load(std::memory_order_acquire);
             if (!r || !bound[i]) continue;
             sw->slot[sw->n] = slots[i];
             sw->repl[sw->n] = r;
@@ -935,7 +1013,7 @@ void OnDraw(int v, ID3D11DeviceContext* c, UINT index_count, UINT instances, UIN
     if (cap == 2) CaptureDraw(c, *s, index_count, instances, start_index, base_vertex, unit, info);
     if (unit >= 0) g_player_draws.fetch_add(1, std::memory_order_relaxed);
     else if (unit == -1) g_traffic_draws.fetch_add(1, std::memory_order_relaxed);
-    if (g_swap) PlanSwap(c, unit, sw);
+    if (g_swap) PlanSwap(c, unit, info.wheel, sw);
 }
 
 // Draws with the swapped views, then puts the game's views back.
@@ -1245,6 +1323,13 @@ void SetUnitWear(const float* wear, int count) {
         g_unit_wear[u].store(u < count && wear[u] > 0.f ? wear[u] : 0.f, std::memory_order_relaxed);
 }
 
+void SetBlown(int unit, int wheel, float side_angle, float side_size) {
+    if (unit < 0 || unit >= tracker::kMaxUnits) return;
+    g_blown_angle[unit].store(side_angle, std::memory_order_relaxed);
+    g_blown_size[unit].store(side_size, std::memory_order_relaxed);
+    g_blown[unit].store(wheel >= 0 ? wheel + 1 : 0, std::memory_order_release);
+}
+
 void SetSeparation(bool enabled) { g_separate = enabled; }
 
 void SetCaptureFrames(int frames) { g_capture_frames = frames < 1 ? 1 : frames > 60 ? 60 : frames; }
@@ -1350,9 +1435,11 @@ std::string Stats() {
         const auto ts = tracker::GetStats();
         snprintf(b, sizeof(b),
                  "\ntires: separation %s; per frame: %.1f player tire draws, %.1f traffic; reads %lld, invalid %lld, "
-                 "no pointer yet %lld; tracker searches %lld, found %lld, completed %lld, predicted %lld, paired %lld",
+                 "no pointer yet %lld; tracker searches %lld, found %lld (mirror fixed %lld), completed %lld, predicted %lld, "
+                 "paired %lld",
                  g_sep_failed.load() ? "OFF (failed)" : "on", per(player, g_stats_player0), per(traffic, g_stats_traffic0),
-                 g_sep_reads.load(), g_sep_invalid.load(), g_sep_nopointer.load(), ts.searches, ts.found, ts.completed, ts.predicted, ts.paired);
+                 g_sep_reads.load(), g_sep_invalid.load(), g_sep_nopointer.load(), ts.searches, ts.found, ts.flipped,
+                 ts.completed, ts.predicted, ts.paired);
         out += b;
         g_stats_player0 = player;
         g_stats_traffic0 = traffic;

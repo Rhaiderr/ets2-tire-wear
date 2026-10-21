@@ -120,6 +120,37 @@ constexpr float kNoStripe = 1e9f;
 ColorAnalysis AnalyzeColor(uint32_t format, const uint8_t* blocks, uint32_t width, uint32_t height, const Rect& tread,
                            const Params& p, std::vector<float>* stripe = nullptr);
 
+// Stage 3, E4b: a blown, shredded tire. Applied on top of the wear (the
+// tread tile repeats around the tire, so the damage repeats with it, as on a
+// tire that shed its tread all round). Patches of tread are torn off down to
+// the carcass, whose steel belt cords show as fine slanted lines; the torn
+// rubber edges are ragged and lighter.
+struct BurstParams {
+    float torn = 0.45f;          // share of the tread torn off
+    float edge = 0.06f;          // softness of the torn edge (noise units)
+    float rim_light = 0.35f;     // torn rubber edge: brightness x (1 + rim_light)
+    float carcass_l = 22.f;      // exposed carcass brightness (0..255), dark brown-grey
+    float cord_l = 70.f;         // steel cord brightness (0..255)
+    float cords = 45.f;          // cords across the tread width
+    float cord_angle = 0.35f;    // radians the cords lean from the circumference [estimativa: belts ~20 deg]
+    float relief = 110.f;        // step at the torn edge in the normal map (BC5 units)
+    float cord_relief = 20.f;    // cord ridges in the normal map (BC5 units)
+    float spec_carcass = 30.f;   // carcass specular (0..255), matte
+    float spec_cord = 150.f;     // steel cord specular (0..255)
+
+    // A gash in the sidewall, drawn once on the sidewall disc around the
+    // texture's centre [verified: SCS tire textures, sidewall ring centred
+    // at UV 0.5, 0.5]. Where and how big is drawn at the blowout.
+    bool side = true;
+    float side_angle = 0.f;      // where around the sidewall (turns, 0..1)
+    float side_size = 0.5f;      // 0 = small slit (~15 deg), 1 = big gash (~75 deg)
+    float side_r = 0.40f;        // radius of its centre line (UV) [estimativa: ring ~0.30..0.49]
+    float side_ring_in = 0.31f;  // keep inside the sidewall ring (UV radii) [estimativa]
+    float side_ring_out = 0.47f;
+};
+void ApplyBurst(uint32_t format, uint8_t* blocks, uint32_t width, uint32_t height, const Rect& tread,
+                const BurstParams& p = BurstParams());
+
 // Low level, exposed for tests: v' = a*v + b on a BC4 block (re-encoded).
 void AffineBc4(uint8_t* block8, float a, float b);
 
