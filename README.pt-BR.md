@@ -78,7 +78,7 @@ O jogo não tem estouro de pneu, então o plugin cria um. A partir de 60% de des
   - **Pneu do caminhão:** dá um tranco para o lado do pneu estourado e, depois, o caminhão continua puxando para esse lado, com uma vibração leve no volante. Ele também fica mais pesado.
   - **Pneu da carreta:** o caminhão só fica mais pesado, sem puxar o volante.
   - **Mais pesado** quer dizer menos acelerador e, com carreta engatada, o freio da carreta a 35%, que **não acende** a luz de freio. Só no momento do estouro há um toque curto no freio, e aí a luz pisca.
-  - **Limite de velocidade:** 60 km/h com pneu do caminhão estourado e 70 km/h quando só a carreta tem pneu estourado. Com pedal analógico, o acelerador é cortado aos poucos perto do limite. Se você passar 8 km/h do limite (numa descida, por exemplo), entra o freio, e a luz acende.
+  - **Limite de velocidade:** 60 km/h com pneu do caminhão estourado e 70 km/h quando só a carreta tem pneu estourado. Com pedal analógico, o acelerador é cortado aos poucos perto do limite. Se você passar 8 km/h do limite e a velocidade não estiver caindo (numa descida, por exemplo), entra o freio, e a luz acende. Logo depois de um estouro em alta velocidade, o freio não entra: o corte do acelerador já está reduzindo a velocidade.
 
 ### Conserto e desligamento
 
@@ -89,7 +89,18 @@ O jogo não tem estouro de pneu, então o plugin cria um. A partir de 60% de des
   - `[effect] enabled = 0` mantém os estouros (aviso e pneu rasgado), mas tira o efeito no caminhão e o som;
   - **Ctrl+Shift+B** no jogo para o efeito e a batida do pneu até o fim da sessão.
 
-O efeito é somado ao seu volante e aos pedais pelos controles oficiais do SDK da SCS. Nenhuma memória do jogo é alterada. No **teclado**, o jogo não deixa o plugin reduzir o acelerador, então o limite de velocidade só age pelo freio, a partir de 8 km/h acima do limite.
+O acelerador e os freios são somados aos seus pedais ou ao teclado pelos controles oficiais do SDK da SCS. Nenhuma memória do jogo é alterada. No **teclado**, o jogo não deixa o plugin reduzir o acelerador, então o limite de velocidade só age pelo freio, a partir de 8 km/h acima do limite.
+
+### Volante com force feedback
+
+Com um volante com force feedback, a puxada é uma **força no próprio volante**: ele gira para o lado do pneu estourado e você segura, como num estouro de verdade. O plugin acha sozinho o volante que o jogo usa (DirectInput) e soma essa força ao force feedback do jogo. No teclado ou num controle sem force feedback, a puxada vira um desvio na direção.
+
+> **Testado só no Logitech G923.** Outros volantes que o jogo usa pelo DirectInput (Logitech, Thrustmaster, Fanatec, Moza…) devem funcionar do mesmo jeito, mas ainda não foram testados. Se testar com outro volante, abra uma [issue](../../issues) com o `game.log.txt` (`Documentos\<jogo>\game.log.txt`): as linhas `ffb:` mostram qual dispositivo foi escolhido.
+
+- **Ajustar a força:** `ffb_pull` (puxada constante, padrão `0.25`), `ffb_kick` (tranco no estouro, `0.6`) e `ffb_wobble` (vibração, `0.08`), em frações da força máxima do volante. A mesma fração pesa bem mais num volante direct drive do que num G923: comece com metade dos valores e suba aos poucos. O ganho do software do volante (G HUB, Fanalab…) também conta.
+- **Força para o lado errado:** `ffb_invert = 1`.
+- **O plugin escolheu outro dispositivo** (por exemplo um joystick virtual) ou não achou o volante: escreva parte do nome do volante em `ffb_device` (por exemplo `ffb_device = G923`). O nome aparece no `game.log.txt`, nas linhas `ffb:`.
+- **Sem força no volante:** `ffb = 0` volta ao desvio na direção.
 
 ## Compatibilidade
 
@@ -103,7 +114,7 @@ O efeito é somado ao seu volante e aos pedais pelos controles oficiais do SDK d
 | Pneus de mods | **Ainda não são compatíveis**: sem desgaste visual, o pneu fica com a aparência original |
 | Caminhões e carretas de mods | Devem funcionar, porque a separação jogador × tráfego usa a posição das rodas e não o modelo |
 | TruckersMP | **Não testado.** Os estouros se desligam sozinhos no TruckersMP e no Convoy |
-| Controles (estouro) | Testado no **teclado**. Com volante e force feedback, ainda está em teste |
+| Controles (estouro) | Testado no **teclado** e no **Logitech G923** (força no volante). Outros volantes: [veja aqui](#volante-com-force-feedback) |
 | Outros mods gráficos | Testado junto com um mod de iluminação que também usa `dxgi.dll` / `dinput8.dll` sem conflito |
 | Desempenho | Sem perda de FPS nos testes. Cada textura de pneu gera 7 versões gastas numa thread separada: ~0,15 s para 512 px, ~0,7 s para 1024 px, só no carregamento. O pneu rasgado é feito uma vez por estouro, também numa thread separada (~75 ms para 1024 px) |
 
@@ -139,7 +150,10 @@ O arquivo fica em `Documentos\<jogo>\TireWear\ets2_tire_wear.ini` (um por jogo) 
 | `[blowout]` | `start_wear`, `km_at_100`, `curve` | `0.60`, `300`, `3` | Desgaste a partir do qual um pneu pode estourar, distância média até estourar a 100% e quão rápido a chance cresce |
 | `[blowout]` | `test_after_s` | `0` | Teste: estoura um pneu depois de tantos segundos dirigindo (vale só naquela sessão). Escolha o pneu com `test_unit` (`truck` ou `trailer`) e `test_wheel` (`-1` = sorteado) |
 | `[effect]` | `enabled` | `1` | Efeito do estouro no caminhão (puxada, peso e limite de velocidade) e som (`0` desliga) |
-| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Força da puxada e da vibração no volante |
+| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Desvio na direção e vibração, no teclado ou sem force feedback |
+| `[effect]` | `ffb` | `1` | Volante com force feedback: a puxada vira força no volante (`0` = desvio na direção) |
+| `[effect]` | `ffb_pull`, `ffb_kick`, `ffb_wobble` | `0.25`, `0.6`, `0.08` | Força da puxada, do tranco e da vibração no volante (fração da força máxima) |
+| `[effect]` | `ffb_invert`, `ffb_device` | `0`, vazio | Inverte o sentido da força; parte do nome do volante, se o plugin não o escolher sozinho |
 | `[effect]` | `limit_truck_kmh`, `limit_trailer_kmh` | `60`, `70` | Limite de velocidade com pneu do caminhão ou só da carreta estourado |
 | `[effect]` | `sound`, `sound_volume`, `flap_volume` | `1`, `0.8`, `0.6` | Som do estouro e do pneu batendo (volume do plugin, de `0` a `1`; não acompanha o volume do jogo) |
 | `[effect]` | `visual` | `1` | Pneu rasgado na roda estourada |
@@ -173,9 +187,10 @@ flowchart LR
 
 1. **Sorteio:** a cada quadro, a distância percorrida (hodômetro da telemetria) e o desgaste de cada veículo dão a chance de estouro. O estado fica salvo em `TireWear\blowout_state.txt`.
 2. **Efeito:** o plugin registra um dispositivo de entrada pela **Input API** oficial do SDK. O jogo soma os valores dele aos do seu volante, pedais ou teclado (direção, acelerador, freio e freio da carreta). Nada é escrito na memória do jogo.
-3. **Som:** gerado por código (sem arquivos de áudio) e tocado pelo Windows. A batida do pneu acompanha a rotação da roda informada pela telemetria.
-4. **Pneu rasgado:** feito a partir da textura do nível de desgaste atual, numa thread separada, e desenhado só na roda estourada (a mesma separação jogador × tráfego do desgaste).
-5. **Aviso:** desenhado pelo plugin com Dear ImGui, imitando os avisos do jogo, com a fonte Rubik embutida na DLL. Um plugin não tem como mostrar os avisos do próprio jogo. O idioma vem do `config.cfg` do jogo.
+3. **Força no volante:** o jogo configura o volante pelo DirectInput antes de o plugin carregar. Por isso o plugin intercepta em memória (MinHook) as funções do `dinput8.dll` do Windows que leem os controles; nenhum arquivo é alterado. Na próxima leitura do jogo, ele reconhece o volante com force feedback e cria nele uma força constante, atualizada logo depois de cada leitura.
+4. **Som:** gerado por código (sem arquivos de áudio) e tocado pelo Windows. A batida do pneu acompanha a rotação da roda informada pela telemetria.
+5. **Pneu rasgado:** feito a partir da textura do nível de desgaste atual, numa thread separada, e desenhado só na roda estourada (a mesma separação jogador × tráfego do desgaste).
+6. **Aviso:** desenhado pelo plugin com Dear ImGui, imitando os avisos do jogo, com a fonte Rubik embutida na DLL. Um plugin não tem como mostrar os avisos do próprio jogo. O idioma vem do `config.cfg` do jogo.
 
 ## Limitações conhecidas
 
@@ -185,6 +200,7 @@ flowchart LR
 - Em alguns modelos, uma linha clara fina no centro da banda some a partir de 14%.
 - Logo depois de carregar, o pneu pode ficar original por alguns frames, até as versões gastas ficarem prontas.
 - Estouro no **teclado**: o acelerador não é limitado (o jogo não deixa), só o freio a partir de 8 km/h acima do limite.
+- Força no volante testada só no G923. Um volante que o jogo não leia pelo DirectInput, ou que o plugin não reconheça (veja `ffb_device`), fica com o desvio na direção, que num volante com force feedback é sentido para o lado contrário.
 - O pneu estourado não fica mais baixo nem muda a física do jogo: o efeito vem só da direção, do acelerador e dos freios.
 - O idioma do aviso é lido quando o jogo abre: se você trocar o idioma, reinicie o jogo.
 

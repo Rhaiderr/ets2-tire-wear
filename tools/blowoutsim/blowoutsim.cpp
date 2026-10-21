@@ -192,6 +192,57 @@ int main(int argc, char** argv) {
         in.speed_kmh = 73.f;
         o = run(in, 1.0);
         check(std::fabs(o.brake - ep.limit_brake * 0.5f) < 1e-3f, "13 km/h over (keyboard): last-resort brake, half");
+        // F2: with a force feedback wheel the pull is a force, no steering offset.
+        {
+            effect::Shaper sw;
+            sw.SetParams(ep);
+            effect::Input w = in;
+            w.wheel_ffb = true;
+            w.truck_left = true, w.truck_steered = true, w.speed_kmh = 50.f, w.truck_blew = true;
+            effect::Output ow = sw.Update(w, 0.01);
+            w.truck_blew = false;
+            for (int i = 0; i < 15; ++i) ow = sw.Update(w, 0.01);
+            check(ow.steering == 0.f && ow.force < -ep.ffb_kick * 0.8f, "wheel: kick is a force to the left, no steering offset");
+            for (int i = 0; i < 200; ++i) ow = sw.Update(w, 0.01);
+            check(ow.steering == 0.f && std::fabs(ow.force + ep.ffb_pull) < ep.ffb_wobble + 1e-3f,
+                  "wheel: then a steady pull force to the left (with the shake)");
+            w.allow = false;
+            ow = sw.Update(w, 0.01);
+            check(ow.force == 0.f, "wheel: paused / stopped: the force lets go at once");
+        }
+        // F1: no limit brake while the speed is already falling (a blowout at
+        // 87 km/h, governor slowing the truck), but it holds on a downhill.
+        {
+            effect::Shaper sf;
+            sf.SetParams(ep);
+            effect::Input f = in;
+            f.truck = false;  // cruising at 87 km/h before the blowout
+            f.speed_kmh = 87.f;
+            for (int i = 0; i < 300; ++i) sf.Update(f, 0.01);
+            f.truck = true;
+            f.truck_blew = true;
+            float max_brake = sf.Update(f, 0.01).brake;
+            f.truck_blew = false;
+            for (int i = 0; i < 30; ++i) max_brake = std::max(max_brake, sf.Update(f, 0.01).brake);  // throttle cut kicks in
+            for (float v = 87.f; v > 68.f; v -= 0.02f) {  // then -2 km/h per second
+                f.speed_kmh = v;
+                max_brake = std::max(max_brake, sf.Update(f, 0.01).brake);
+            }
+            check(max_brake <= ep.kick_brake + 1e-3f, "blowout at 87 km/h, speed falling 2 km/h/s: only the brake tap, no limit brake");
+            f.speed_kmh = 75.f;
+            for (int i = 0; i < 200; ++i) o = sf.Update(f, 0.01);
+            check(o.brake > 0.05f, "steady at 75 km/h (downhill): limit brake");
+            float min_brake = 1.f;
+            for (float v = 75.f; v > 69.f; v -= 0.03f) {  // the brake slows it: -3 km/h per second
+                f.speed_kmh = v;
+                o = sf.Update(f, 0.01);
+                min_brake = std::min(min_brake, o.brake);
+            }
+            check(min_brake > 0.f, "once braking, it holds while slowing down (no flashing lights)");
+            f.speed_kmh = 66.f;
+            for (int i = 0; i < 100; ++i) o = sf.Update(f, 0.01);
+            check(o.brake == 0.f, "back under limit + 8 km/h: brake released");
+        }
         effect::Input tr;
         tr.allow = true, tr.trailer = true, tr.speed_kmh = 65.f;
         effect::Shaper s2;

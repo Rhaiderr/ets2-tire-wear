@@ -22,13 +22,21 @@ Output Shaper::Update(const Input& in, double dt) {
     if (in.truck_blew || in.trailer_blew) since_burst_ = 0.0;
     since_truck_ += dt;
     since_burst_ += dt;
+    const float speed = std::fabs(in.speed_kmh);
+    if (dt > 0.0 && last_speed_ >= 0.f) {
+        const float rate = std::clamp(static_cast<float>((speed - last_speed_) / dt), -50.f, 50.f);
+        speed_rate_ += (rate - speed_rate_) * static_cast<float>(std::min(1.0, dt / 0.5));
+    }
+    last_speed_ = speed;
+    not_falling_s_ = speed_rate_ > -p_.limit_brake_falling ? not_falling_s_ + dt : 0.0;
+    if (in.truck_blew || in.trailer_blew) not_falling_s_ = 0.0;
     if (!in.allow || !p_.enabled) {
         // Pause, multiplayer or the stop key: let go at once.
         out_ = Output{};
+        limit_braking_ = false;
         return out_;
     }
 
-    const float speed = std::fabs(in.speed_kmh);
     const float pull_factor = p_.full_speed_kmh > 0.f ? Clamp01(speed / p_.full_speed_kmh) : 1.f;
     // Drag fades in over 5 km/h above min_speed_kmh, so it never stops the truck dead.
     const float drag_factor = Clamp01((speed - p_.min_speed_kmh) / 5.f);
@@ -45,8 +53,17 @@ Output Shaper::Update(const Input& in, double dt) {
         // The flapping tire: about one shake per wheel turn.
         const double hz = std::min(8.0, speed / 3.6 / 3.2);  // ~1 m tire: 3.2 m per turn
         wobble_phase_ = std::fmod(wobble_phase_ + dt * hz * 6.283185307179586, 6.283185307179586);
-        const float shake = p_.wobble * static_cast<float>(std::sin(wobble_phase_));
-        target.steering = std::clamp(side * pull * pull_factor + shake * pull_factor, -1.f, 1.f);
+        const float wave = static_cast<float>(std::sin(wobble_phase_));
+        if (in.wheel_ffb) {
+            // F2: an offset is felt backwards on a force feedback wheel (the
+            // game's centring pushes the other way) [verified: G923 test], so
+            // the real wheel gets pulled instead and the driver holds it.
+            float force = p_.ffb_pull * (in.truck_steered ? 1.f : p_.pull_rear);
+            if (since_truck_ < p_.kick_s) force = std::max(force, p_.ffb_kick);
+            target.force = std::clamp(side * force * pull_factor + p_.ffb_wobble * wave * pull_factor, -1.f, 1.f);
+        } else {
+            target.steering = std::clamp(side * pull * pull_factor + p_.wobble * wave * pull_factor, -1.f, 1.f);
+        }
         target.throttle = -Clamp01(p_.throttle_cut) * drag_factor;
         if (in.trailer_attached) target.trailer_brake = Clamp01(p_.truck_trailer_hold) * drag_factor;
     }
@@ -68,14 +85,22 @@ Output Shaper::Update(const Input& in, double dt) {
                                                 : (speed >= limit ? 1.f : 0.f);
         target.throttle = std::min(target.throttle, -cut);
         const float over = speed - limit - p_.limit_brake_after_kmh;
-        if (over > 0.f && p_.limit_band_kmh > 0.f)
+        // F1: start only while the speed is not already falling [verified: G923
+        // test, a blowout at 87 km/h braked with the lights on while the
+        // governor alone was slowing the truck]; then hold until back under.
+        if (over <= 0.f) limit_braking_ = false;
+        else if (not_falling_s_ >= p_.limit_brake_wait_s) limit_braking_ = true;
+        if (limit_braking_ && p_.limit_band_kmh > 0.f)
             target.brake = std::max(target.brake, Clamp01(p_.limit_brake) * Clamp01(over / p_.limit_band_kmh));
+    } else {
+        limit_braking_ = false;
     }
 
     // A blowout is sudden: steering reaches the kick within ~0.05 s; brakes,
     // throttle and the release are a little softer.
     const float f = static_cast<float>(dt);
     out_.steering = Approach(out_.steering, target.steering, 6.f * f);
+    out_.force = Approach(out_.force, target.force, 6.f * f);
     out_.throttle = Approach(out_.throttle, target.throttle, 2.f * f);
     out_.brake = Approach(out_.brake, target.brake, 2.f * f);
     out_.trailer_brake = Approach(out_.trailer_brake, target.trailer_brake, 2.f * f);

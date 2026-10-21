@@ -80,7 +80,7 @@ The game has no tire blowouts, so the plugin adds them. From 60% wear, each vehi
   - **Truck tire:** a jolt towards the blown side, then the truck keeps pulling that way, with a light shake in the steering. It also drags.
   - **Trailer tire:** the truck only drags, with no pull on the steering.
   - **Drags** means less throttle and, with a trailer attached, the trailer brake at 35%, which does **not** light the brake lamps. Only at the blowout is there a short brake tap, and the lamps flash.
-  - **Speed limit:** 60 km/h with a blown truck tire, and 70 km/h when only a trailer tire is blown. With an analog pedal, the throttle is gradually taken away near the limit. If you go 8 km/h over the limit (downhill, for example), the brake comes in and the lamps light up.
+  - **Speed limit:** 60 km/h with a blown truck tire, and 70 km/h when only a trailer tire is blown. With an analog pedal, the throttle is gradually taken away near the limit. If you go 8 km/h over the limit and the speed is not dropping (downhill, for example), the brake comes in and the lamps light up. Right after a blowout at high speed the brake stays off: the throttle cut is already slowing the truck.
 
 ### Repair and turning it off
 
@@ -91,7 +91,18 @@ The game has no tire blowouts, so the plugin adds them. From 60% wear, each vehi
   - `[effect] enabled = 0` keeps blowouts (notice and shredded tire) but removes the effect on the truck and the sounds;
   - **Ctrl+Shift+B** in the game stops the effect and the slapping sound for the rest of the session.
 
-The effect is added to your wheel and pedals through the official SCS SDK controls. No game memory is changed. On the **keyboard**, the game does not let the plugin take throttle away, so the speed limit only works through the brake, from 8 km/h over the limit.
+Throttle and brakes are added to your pedals or keyboard through the official SCS SDK controls. No game memory is changed. On the **keyboard**, the game does not let the plugin take throttle away, so the speed limit only works through the brake, from 8 km/h over the limit.
+
+### Force feedback wheels
+
+On a force feedback wheel, the pull is a **force on the wheel itself**: it turns towards the blown tire and you hold it, as in a real blowout. The plugin finds the wheel the game uses (DirectInput) by itself and adds this force to the game's own force feedback. On the keyboard or a controller without force feedback, the pull is a steering offset instead.
+
+> **Tested on a Logitech G923 only.** Other wheels the game drives through DirectInput (Logitech, Thrustmaster, Fanatec, Moza…) should work the same way but have not been tested yet. If you try another wheel, please open an [issue](../../issues) with your `game.log.txt` (`Documents\<game>\game.log.txt`): its `ffb:` lines show which device was picked.
+
+- **Adjusting the force:** `ffb_pull` (steady pull, default `0.25`), `ffb_kick` (jolt at the blowout, `0.6`) and `ffb_wobble` (shake, `0.08`), as fractions of the wheel's full force. The same fraction is much stronger on a direct drive wheel than on a G923: start at half these values and go up step by step. Your wheel software's gain (G HUB, Fanalab…) counts too.
+- **Force pushes the wrong way:** `ffb_invert = 1`.
+- **The plugin picked another device** (a virtual joystick, for example) or did not find your wheel: put part of your wheel's name in `ffb_device` (for example `ffb_device = G923`). The name is in `game.log.txt`, on the `ffb:` lines.
+- **No force on the wheel:** `ffb = 0` goes back to the steering offset.
 
 ## Compatibility
 
@@ -105,7 +116,7 @@ The effect is added to your wheel and pedals through the official SCS SDK contro
 | Modded tires | **Not supported yet**: no visual wear, the tire keeps its original look |
 | Modded trucks and trailers | Should work: telling yours from traffic uses the wheel positions, not the model |
 | TruckersMP | **Not tested.** Blowouts turn themselves off in TruckersMP and in Convoy |
-| Controls (blowouts) | Tested on the **keyboard**. A wheel with force feedback is still being tested |
+| Controls (blowouts) | Tested on the **keyboard** and a **Logitech G923** (force on the wheel). Other wheels: [see here](#force-feedback-wheels) |
 | Other graphics mods | Tested alongside a lighting mod that also uses `dxgi.dll` / `dinput8.dll`, with no conflict |
 | Performance | No FPS loss in tests. Each tire texture gets 7 worn versions on a background thread: ~0.15 s for 512 px and ~0.7 s for 1024 px, only when it loads. The shredded tire is made once per blowout, also on a background thread (~75 ms for 1024 px) |
 
@@ -141,7 +152,10 @@ The file is `Documents\<game>\TireWear\ets2_tire_wear.ini` (one per game), creat
 | `[blowout]` | `start_wear`, `km_at_100`, `curve` | `0.60`, `300`, `3` | The wear from which a tire can blow, the average distance until a blowout at 100%, and how fast the chance grows |
 | `[blowout]` | `test_after_s` | `0` | Testing: blows a tire after that many seconds of driving (this session only). Pick the tire with `test_unit` (`truck` or `trailer`) and `test_wheel` (`-1` = random) |
 | `[effect]` | `enabled` | `1` | The blowout's effect on the truck (pull, drag and speed limit) and its sounds (`0` = off) |
-| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Strength of the pull and of the steering shake |
+| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Steering offset and shake, on the keyboard or without force feedback |
+| `[effect]` | `ffb` | `1` | Force feedback wheel: the pull becomes a force on the wheel (`0` = steering offset) |
+| `[effect]` | `ffb_pull`, `ffb_kick`, `ffb_wobble` | `0.25`, `0.6`, `0.08` | Strength of the pull, the jolt and the shake on the wheel (fraction of its full force) |
+| `[effect]` | `ffb_invert`, `ffb_device` | `0`, empty | Flips the force; part of your wheel's name, if the plugin does not pick it by itself |
 | `[effect]` | `limit_truck_kmh`, `limit_trailer_kmh` | `60`, `70` | Speed limit with a blown truck tire, or with only a blown trailer tire |
 | `[effect]` | `sound`, `sound_volume`, `flap_volume` | `1`, `0.8`, `0.6` | Bang and slapping sounds (the plugin's own volume, `0` to `1`; not tied to the game's volume) |
 | `[effect]` | `visual` | `1` | Shredded tire on the blown wheel |
@@ -175,9 +189,10 @@ flowchart LR
 
 1. **The draw:** every frame, the distance driven (telemetry odometer) and each vehicle's wear give the chance of a blowout. The state is saved in `TireWear\blowout_state.txt`.
 2. **Effect:** the plugin registers an input device through the SDK's official **Input API**. The game adds its values to those of your wheel, pedals or keyboard (steering, throttle, brake and trailer brake). Nothing is written to the game's memory.
-3. **Sound:** generated in code (no audio files) and played through Windows. The slapping follows the wheel rotation reported by the telemetry.
-4. **Shredded tire:** made from the texture of the current wear level, on a background thread, and drawn on the blown wheel only (the same player vs traffic separation as the wear).
-5. **Notice:** drawn by the plugin with Dear ImGui, imitating the game's notices, with the Rubik font built into the DLL. A plugin cannot show the game's own notices. The language comes from the game's `config.cfg`.
+3. **Force on the wheel:** the game sets the wheel up through DirectInput before the plugin loads, so the plugin detours in memory (MinHook) the functions of Windows' `dinput8.dll` that read the controllers; no file is changed. At the game's next read it recognises the force feedback wheel and creates a constant force on it, updated right after each read.
+4. **Sound:** generated in code (no audio files) and played through Windows. The slapping follows the wheel rotation reported by the telemetry.
+5. **Shredded tire:** made from the texture of the current wear level, on a background thread, and drawn on the blown wheel only (the same player vs traffic separation as the wear).
+6. **Notice:** drawn by the plugin with Dear ImGui, imitating the game's notices, with the Rubik font built into the DLL. A plugin cannot show the game's own notices. The language comes from the game's `config.cfg`.
 
 ## Known limitations
 
@@ -187,6 +202,7 @@ flowchart LR
 - On some models, a thin light line in the middle of the tread disappears from 14% on.
 - Right after loading, a tire may look original for a few frames until its worn versions are ready.
 - Blowouts on the **keyboard**: the throttle is not limited (the game does not allow it), only the brake from 8 km/h over the limit.
+- Force on the wheel tested on a G923 only. A wheel the game does not read through DirectInput, or that the plugin does not recognise (see `ffb_device`), gets the steering offset, which is felt the wrong way on a force feedback wheel.
 - A blown tire does not sit lower and does not change the game's physics: the effect comes only from the steering, throttle and brakes.
 - The notice's language is read when the game starts: if you change the language, restart the game.
 

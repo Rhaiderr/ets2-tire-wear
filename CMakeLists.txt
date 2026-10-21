@@ -49,13 +49,13 @@ configure_file("${CATALOG_CPP}.tmp" "${CATALOG_CPP}" COPYONLY)
 
 # The game loads the plugin as a plain DLL exporting scs_telemetry_init/shutdown.
 add_library(ets2_tire_wear SHARED src/plugin.cpp src/present_probe.cpp src/overlay.cpp src/tire_probe.cpp
-    src/wear_transform.cpp src/player_tracker.cpp src/blowout.cpp src/effect.cpp src/tire_audio.cpp src/notice.cpp
+    src/wear_transform.cpp src/player_tracker.cpp src/blowout.cpp src/effect.cpp src/tire_audio.cpp src/notice.cpp src/ffb.cpp
     src/resources.rc "${CATALOG_CPP}"
     src/exports.def)
 target_include_directories(ets2_tire_wear PRIVATE third_party/scs_sdk/include)
 target_compile_definitions(ets2_tire_wear PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_compile_options(ets2_tire_wear PRIVATE /W4 /permissive-)
-target_link_libraries(ets2_tire_wear PRIVATE minhook imgui delayimp winmm)
+target_link_libraries(ets2_tire_wear PRIVATE minhook imgui delayimp winmm dxguid)
 # d3dcompiler_47.dll (used by the ImGui DX11 backend) only loads when the HUD starts.
 target_link_options(ets2_tire_wear PRIVATE /DELAYLOAD:d3dcompiler_47.dll)
 set_target_properties(ets2_tire_wear PROPERTIES OUTPUT_NAME "ets2_tire_wear")

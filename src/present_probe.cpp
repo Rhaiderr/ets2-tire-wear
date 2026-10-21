@@ -575,7 +575,19 @@ Config LoadConfig(const std::wstring& tirewear_dir) {
                   "min_speed_kmh = 5\r\n"
                   "full_speed_kmh = 40\r\n"
                   "; 1 = pull to the other side (if the game's sign is the opposite)\r\n"
-                  "steer_invert = 0\r\n",
+                  "steer_invert = 0\r\n"
+                  "; 1 = on a force feedback wheel the pull is a force on the wheel itself (DirectInput)\r\n"
+                  "; instead of a steering offset; 0 = steering offset as on the keyboard\r\n"
+                  "ffb = 1\r\n"
+                  "; wheel force (0 ... 1 of its full force): steady pull, at the blowout, and the shake\r\n"
+                  "ffb_pull = 0.25\r\n"
+                  "ffb_kick = 0.6\r\n"
+                  "ffb_wobble = 0.08\r\n"
+                  "; 1 = the force pushes the wrong way on your wheel\r\n"
+                  "ffb_invert = 0\r\n"
+                  "; part of your wheel's name, if the plugin does not pick it by itself (see the game log,\r\n"
+                  "; lines \"ffb: ...\"); empty = the first wheel with force feedback the game reads\r\n"
+                  "ffb_device =\r\n",
                   f);
             fclose(f);
         }

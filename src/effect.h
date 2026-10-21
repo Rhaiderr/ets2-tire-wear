@@ -40,12 +40,24 @@ struct Params {
     float limit_brake_after_kmh = 8.f;
     float limit_band_kmh = 10.f;
     float limit_brake = 0.3f;
+    // F1: the limit brake only starts once the speed has not been falling
+    // faster than limit_brake_falling (km/h per second, ~0.5 s average) for
+    // limit_brake_wait_s (counted from the blowout), so the governor gets to
+    // slow the truck first; once on it holds until back under the limit +
+    // limit_brake_after_kmh, so a downhill does not flash the lights.
+    float limit_brake_falling = 0.5f;
+    float limit_brake_wait_s = 1.5f;
     // E3: a flapping truck tire shakes the steering: +-wobble, about once per
     // wheel turn (~5 Hz at 60 km/h [estimate: ~1 m tire]).
     float wobble = 0.015f;
     float min_speed_kmh = 5.f;   // no drag below this (keeps an automatic out of reverse)
     float full_speed_kmh = 40.f; // the pull grows from 0 (standing) to full at this speed
     bool steer_invert = false;   // flips the pull side if the game's sign turns out opposite
+    // F2: with a force feedback wheel the pull is a force on the real wheel
+    // instead of a steering offset (fractions of the wheel's full force).
+    float ffb_pull = 0.25f;      // steady force for a steered-axle tire (other axles: x pull_rear)
+    float ffb_kick = 0.6f;       // force right after the blowout, for kick_s
+    float ffb_wobble = 0.08f;    // +- shake, about once per wheel turn
 };
 
 struct Input {
@@ -57,11 +69,13 @@ struct Input {
     bool truck_blew = false;      // the truck tire blew this frame (not a blowout loaded from the save)
     bool trailer_blew = false;    // a trailer tire blew this frame
     bool trailer_attached = false;  // there is a trailer brake to drag with
+    bool wheel_ffb = false;       // F2: a force feedback wheel takes the pull as a force
     float speed_kmh = 0.f;        // signed, negative when reversing
 };
 
 struct Output {
     float steering = 0.f;      // semantical.steering (positive = right [verified: E2 test])
+    float force = 0.f;         // F2: force on the wheel, -1 (left) ... 1 (right)
     float throttle = 0.f;      // semantical.aforward (negative = less throttle)
     float brake = 0.f;         // semantical.abackward
     float trailer_brake = 0.f; // semantical.trailerbrake
@@ -81,6 +95,9 @@ private:
     Output out_;
     double since_truck_ = 1e9, since_burst_ = 1e9;  // seconds since the truck tire / any tire blew
     double wobble_phase_ = 0.0;                     // radians
+    float last_speed_ = -1.f, speed_rate_ = 0.f;    // km/h (-1 = none yet), km/h per second (smoothed)
+    double not_falling_s_ = 0.0;                    // since the speed stopped falling (or the blowout)
+    bool limit_braking_ = false;
 };
 
 }  // namespace effect

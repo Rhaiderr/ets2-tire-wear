@@ -32,6 +32,7 @@
 
 #include "blowout.h"
 #include "effect.h"
+#include "ffb.h"
 #include "notice.h"
 #include "overlay.h"
 #include "player_tracker.h"
@@ -92,6 +93,9 @@ struct State {
     bool sound = true;
     float sound_volume = 0.8f, flap_volume = 0.6f;
     bool visual = true;  // E4b: draw the blown wheel shredded
+    bool ffb = true;     // F1/F2: a force of our own on the player's force feedback wheel
+    bool ffb_invert = false;
+    std::string ffb_device;  // part of the wheel's name; empty = the first wheel with force feedback
     float wheel_rotation[tracker::kMaxUnits][tracker::kMaxWheels] = {};  // turns, 0 ... 1
     float wheel_rps[tracker::kMaxUnits][tracker::kMaxWheels] = {};       // turns per second
 };
@@ -149,6 +153,7 @@ bool GameLanguagePt() {
 
 void FlushProbeMessages() {
     for (const auto& m : present_probe::TakeMessages()) Log(SCS_LOG_TYPE_message, m);
+    for (const auto& m : ffb::TakeMessages()) Log(SCS_LOG_TYPE_message, m);
 }
 
 bool OpenCsv() {
@@ -333,7 +338,7 @@ void LoadBlowoutParams() {
     p.test_trailer = _wcsicmp(unit, L"trailer") == 0;
     p.test_wheel = static_cast<int>(GetPrivateProfileIntW(L"blowout", L"test_wheel", -1, file));
     g_blowout.SetParams(p);
-    char msg[400];
+    char msg[640];
     snprintf(msg, sizeof(msg), "%s, start_wear %.2f, km_at_100 %.0f, curve %.1f", p.enabled ? "on" : "off", p.start_wear,
              p.km_at_100, p.curve);
     std::string text = msg;
@@ -372,21 +377,33 @@ void LoadBlowoutParams() {
     e.min_speed_kmh = std::max(0.f, effect_number(L"min_speed_kmh", e.min_speed_kmh));
     e.full_speed_kmh = std::max(1.f, effect_number(L"full_speed_kmh", e.full_speed_kmh));
     e.steer_invert = GetPrivateProfileIntW(L"effect", L"steer_invert", 0, file) == 1;
+    e.ffb_pull = std::clamp(effect_number(L"ffb_pull", e.ffb_pull), 0.f, 1.f);
+    e.ffb_kick = std::clamp(effect_number(L"ffb_kick", e.ffb_kick), 0.f, 1.f);
+    e.ffb_wobble = std::clamp(effect_number(L"ffb_wobble", e.ffb_wobble), 0.f, 0.5f);
     g_effect.SetParams(e);
     g.sound = GetPrivateProfileIntW(L"effect", L"sound", 1, file) == 1;
     g.sound_volume = std::clamp(effect_number(L"sound_volume", g.sound_volume), 0.f, 1.f);
     g.flap_volume = std::clamp(effect_number(L"flap_volume", g.flap_volume), 0.f, 1.f);
     g.visual = GetPrivateProfileIntW(L"effect", L"visual", 1, file) == 1;
+    g.ffb = GetPrivateProfileIntW(L"effect", L"ffb", 1, file) == 1;
+    g.ffb_invert = GetPrivateProfileIntW(L"effect", L"ffb_invert", 0, file) == 1;
+    wchar_t device[128] = {};
+    GetPrivateProfileStringW(L"effect", L"ffb_device", L"", device, 128, file);
+    char device_utf8[384] = {};
+    WideCharToMultiByte(CP_UTF8, 0, device, -1, device_utf8, sizeof(device_utf8), nullptr, nullptr);
+    g.ffb_device = device_utf8;
     char sound[32] = "off";
     if (g.sound) snprintf(sound, sizeof(sound), "%.2f (flap %.2f)", g.sound_volume, g.flap_volume);
     snprintf(msg, sizeof(msg),
              "%s, pull %.2f (rear x%.2f, kick x%.1f for %.1f s), brake tap %.2f for %.1f s, throttle cut %.2f "
              "(trailer %.2f), trailer_hold %.2f (truck tire %.2f) + pedal %.2f, limit %.0f/%.0f km/h "
-             "(governor %.0f km/h, brake %.2f from +%.0f over %.0f km/h), wobble %.3f, sound %s%s",
+             "(governor %.0f km/h, brake %.2f from +%.0f over %.0f km/h), wobble %.3f, sound %s, "
+             "ffb %s (pull %.2f, kick %.2f, wobble %.2f%s)%s",
              e.enabled ? "on" : "off", e.pull, e.pull_rear, e.kick, e.kick_s, e.kick_brake, e.kick_brake_s,
              e.throttle_cut, e.trailer_throttle_cut, e.trailer_hold, e.truck_trailer_hold, e.trailer_pedal,
              e.limit_truck_kmh, e.limit_trailer_kmh, e.governor_kmh, e.limit_brake, e.limit_brake_after_kmh,
-             e.limit_band_kmh, e.wobble, sound,
+             e.limit_band_kmh, e.wobble, sound, g.ffb ? "on" : "off", e.ffb_pull, e.ffb_kick, e.ffb_wobble,
+             g.ffb_invert ? ", inverted" : "",
              e.steer_invert ? ", steer inverted" : "");
     Log(SCS_LOG_TYPE_message, std::string("effect: ") + msg);
 }
@@ -540,7 +557,9 @@ void EffectStep(const tracker::Unit* units) {
             in.trailer = true;
         }
     }
+    in.wheel_ffb = ffb::Active();
     const effect::Output out = g_effect.Update(in, dt);
+    ffb::SetForce(out.force);
     // The torn tire slapping the road, in step with that wheel's rotation.
     const bool flapping = heard_unit >= 0 && in.allow && g.sound && g_effect.params().enabled;
     tire_audio::SetWheel(flapping, flapping ? g.wheel_rotation[heard_unit][heard_wheel] : 0.0,
@@ -553,7 +572,7 @@ void EffectStep(const tracker::Unit* units) {
     // Twice a second while anything is going on: what we send and what the
     // game made of it (sum with the wheel, pull side, brake lights).
     const bool busy = in.truck || in.trailer || out.steering != 0.f || out.throttle != 0.f || out.brake != 0.f ||
-                      out.trailer_brake != 0.f;
+                      out.trailer_brake != 0.f || out.force != 0.f;
     if (!busy) {
         if (!g.effect_logged_idle) {
             g.effect_logged_idle = true;
@@ -569,17 +588,19 @@ void EffectStep(const tracker::Unit* units) {
     if (FILE* f = _wfopen((TireWearDir() + L"\\effect.log").c_str(), L"ab")) {
         if (g.effect_logged_idle)
             fprintf(f, "time,speed_kmh,source,allow,send_steering,send_throttle,send_brake,send_trailer_brake,"
-                       "input_steering,effective_steering,input_throttle,effective_throttle,effective_brake,light_brake\n");
+                       "input_steering,effective_steering,input_throttle,effective_throttle,effective_brake,light_brake,"
+                       "wheel_ffb,send_force\n");
         g.effect_logged_idle = false;
         SYSTEMTIME st;
         GetLocalTime(&st);
         const char* source = in.truck ? (in.truck_steered ? (in.truck_left ? "truck_steered_left" : "truck_steered_right")
                                                           : (in.truck_left ? "truck_left" : "truck_right"))
                                       : in.trailer ? "trailer" : "-";
-        fprintf(f, "%02d:%02d:%02d.%03d,%.1f,%s%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", st.wHour,
-                st.wMinute, st.wSecond, st.wMilliseconds, in.speed_kmh, source, in.truck && in.trailer ? "+trailer" : "",
-                in.allow ? 1 : 0, out.steering, out.throttle, out.brake, out.trailer_brake, g.input_steering,
-                g.effective_steering, g.input_throttle, g.effective_throttle, g.effective_brake, g.light_brake ? 1 : 0);
+        fprintf(f, "%02d:%02d:%02d.%03d,%.1f,%s%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%.3f\n",
+                st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, in.speed_kmh, source,
+                in.truck && in.trailer ? "+trailer" : "", in.allow ? 1 : 0, out.steering, out.throttle, out.brake,
+                out.trailer_brake, g.input_steering, g.effective_steering, g.input_throttle, g.effective_throttle,
+                g.effective_brake, g.light_brake ? 1 : 0, in.wheel_ffb ? 1 : 0, out.force);
         fclose(f);
     }
 }
@@ -765,6 +786,8 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     g.lang_pt = GameLanguagePt();
     Log(SCS_LOG_TYPE_message, std::string("notice language: ") + (g.lang_pt ? "Portuguese" : "English"));
     LoadBlowoutParams();
+    if (g.ffb) ffb::Start(g.ffb_invert, g.ffb_device);
+    FlushProbeMessages();
     if (g_blowout.Load(TireWearDir() + L"\\blowout_state.txt")) Log(SCS_LOG_TYPE_message, "blowout: state loaded");
     if (g.probe_cfg.tires_log) {
         // R2 must see the world's textures being created, so hook now
@@ -791,6 +814,7 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
 
 SCSAPI_VOID scs_telemetry_shutdown(void) {
     tire_audio::Stop();
+    ffb::Stop();
     present_probe::Stop();
     FlushProbeMessages();
     if (g.csv) {
