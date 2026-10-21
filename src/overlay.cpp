@@ -31,6 +31,8 @@ std::atomic<float> g_trailer[kMaxTrailers];
 std::atomic<bool> g_connected[kMaxTrailers];
 
 std::mutex g_mutex;  // Present and ResizeBuffers may come from different threads
+std::mutex g_alert_mutex;
+std::string g_alert;  // stage 3: blown tires, one per line
 bool g_failed = false;
 IDXGISwapChain* g_sc = nullptr;  // not owned; only compared
 ID3D11Device* g_device = nullptr;
@@ -163,6 +165,13 @@ const char* Draw(IDXGISwapChain* sc, std::string* detail) {
         snprintf(label, sizeof(label), "Carreta %d", i);
         WearLine(label, g_trailer[i].load(std::memory_order_relaxed));
     }
+    {
+        std::lock_guard<std::mutex> lock(g_alert_mutex);
+        if (!g_alert.empty()) {
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(1.f, 0.35f, 0.25f, 1.f), "%s", g_alert.c_str());
+        }
+    }
     ImGui::End();
     ImGui::Render();
 
@@ -201,6 +210,11 @@ void SetWear(float truck, const float* trailer_wear, const bool* trailer_connect
         g_trailer[i].store(trailer_wear[i], std::memory_order_relaxed);
         g_connected[i].store(trailer_connected[i], std::memory_order_relaxed);
     }
+}
+
+void SetAlert(const std::string& text) {
+    std::lock_guard<std::mutex> lock(g_alert_mutex);
+    g_alert = text;
 }
 
 void OnPresent(IDXGISwapChain* sc) {

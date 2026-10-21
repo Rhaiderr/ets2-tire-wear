@@ -1,0 +1,72 @@
+#pragma once
+
+// Stage 3, E2: what a blown tire does to the truck, as extra driver input fed
+// to the game through the SCS Input API (semantical device). The game adds
+// these to the player's own wheel and pedals [verified: controls.sii mixes
+// "steering = wheel - semantical.steering", "aforward = pedal +
+// semantical.aforward", "abackward = pedal + semantical.abackward",
+// "trailerbrake = semantical.trailerbrake"].
+//
+// Truck tire: pull towards the blown side (strong on a steered axle). Any
+// blown tire: a short brake tap at the blowout, then drag by taking throttle
+// away (no brake lights) [verified: E2 test, brake pedal input lights them].
+// A trailer tire also pulls on the trailer brake, never on the steering.
+
+namespace effect {
+
+struct Params {
+    bool enabled = true;
+    float pull = 0.12f;          // steering offset for a steered-axle tire (1 = full lock)
+    float pull_rear = 0.4f;      // other truck axles: this fraction of pull
+    float kick = 2.f;            // pull multiplier right after the blowout ...
+    float kick_s = 0.4f;         // ... for this many seconds
+    float kick_brake = 0.15f;    // brake pedal tap at the blowout (brake lights only then) ...
+    float kick_brake_s = 1.f;    // ... for this many seconds
+    float throttle_cut = 0.2f;   // throttle taken away while a truck tire is blown
+    float trailer_throttle_cut = 0.1f;  // ... while only a trailer tire is blown
+    // Trailer brake for a trailer tire / for a truck tire with a trailer
+    // attached. 0.35 holds without lighting the brake lamps [verified: E2b
+    // test, light.brake stayed off; a full manual trailer brake lights them].
+    float trailer_hold = 0.35f;
+    float truck_trailer_hold = 0.35f;
+    float trailer_pedal = 0.f;   // plus this much brake pedal all the time (lights on)
+    float min_speed_kmh = 5.f;   // no drag below this (keeps an automatic out of reverse)
+    float full_speed_kmh = 40.f; // the pull grows from 0 (standing) to full at this speed
+    bool steer_invert = false;   // flips the pull side if the game's sign turns out opposite
+};
+
+struct Input {
+    bool allow = false;           // not paused, not multiplayer, not stopped by the player
+    bool truck = false;           // a truck tire is blown ...
+    bool truck_steered = false;   // ... on a steered axle
+    bool truck_left = false;      // ... on the left side
+    bool trailer = false;         // a trailer tire is blown
+    bool truck_blew = false;      // the truck tire blew this frame (not a blowout loaded from the save)
+    bool trailer_blew = false;    // a trailer tire blew this frame
+    bool trailer_attached = false;  // there is a trailer brake to drag with
+    float speed_kmh = 0.f;        // signed, negative when reversing
+};
+
+struct Output {
+    float steering = 0.f;      // semantical.steering (positive = right [verified: E2 test])
+    float throttle = 0.f;      // semantical.aforward (negative = less throttle)
+    float brake = 0.f;         // semantical.abackward
+    float trailer_brake = 0.f; // semantical.trailerbrake
+};
+
+// Turns the blowout state into input values, frame by frame: a kick when a
+// tire blows, then a steady pull and drag; quick ramps in and out.
+class Shaper {
+public:
+    void SetParams(const Params& p) { p_ = p; }
+    const Params& params() const { return p_; }
+    Output Update(const Input& in, double dt);
+    const Output& last() const { return out_; }
+
+private:
+    Params p_;
+    Output out_;
+    double since_truck_ = 1e9, since_burst_ = 1e9;  // seconds since the truck tire / any tire blew
+};
+
+}  // namespace effect

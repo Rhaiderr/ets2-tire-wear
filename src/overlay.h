@@ -18,6 +18,8 @@ void Configure(const Settings& s, void (*log)(const std::string&));
 
 // Game thread: latest telemetry values (-1 = no value yet).
 void SetWear(float truck, const float* trailer_wear, const bool* trailer_connected, int count);
+// Game thread: blown tires to show, one per line (empty = none).
+void SetAlert(const std::string& text);
 
 // Render thread, game swap chain only.
 void OnPresent(IDXGISwapChain* sc);

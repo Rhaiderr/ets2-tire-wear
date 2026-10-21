@@ -9,22 +9,29 @@
 #include <windows.h>
 #include <shlobj.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
 
+#include "scssdk_input.h"
 #include "scssdk_telemetry.h"
 #include "amtrucks/scssdk_ats.h"
 #include "eurotrucks2/scssdk_eut2.h"
 #include "eurotrucks2/scssdk_telemetry_eut2.h"
+#include "common/scssdk_telemetry_common_channels.h"
 #include "common/scssdk_telemetry_common_configs.h"
 #include "common/scssdk_telemetry_truck_common_channels.h"
 #include "common/scssdk_telemetry_trailer_common_channels.h"
 
+#include "blowout.h"
+#include "effect.h"
 #include "overlay.h"
 #include "player_tracker.h"
 #include "present_probe.h"
@@ -58,12 +65,39 @@ struct State {
     std::array<scs_value_dplacement_t, kMaxTrailers> trailer_placement{};
     std::map<std::string, std::string> configs;  // config id ("truck", "trailer.0" ...) -> attributes as text
     tracker::Unit unit_wheels[tracker::kMaxUnits];  // R4b: wheel layout per unit (0 = truck, 1 + i = trailer i)
+    // Stage 3: blowouts.
+    std::string unit_key[tracker::kMaxUnits];  // "truck|<model>|<plate>", "trailer|<model>|<plate>"; "" = unknown
+    double last_odometer = -1.0;
+    int32_t mp_offset = 0;    // multiplayer.time.offset: non-zero in a Convoy session
+    bool truckersmp = false;  // TruckersMP client module in the process
+    bool mp_logged = false;
+    std::chrono::steady_clock::time_point last_mp_check{};
+    std::chrono::steady_clock::time_point last_frame{};
+    double test_drive_s = 0.0;
+    bool test_done = false;
+    // E2: the effect of a blown tire, fed back as driver input.
+    bool steerable[tracker::kMaxUnits][tracker::kMaxWheels] = {};
+    float input_steering = 0.f, effective_steering = 0.f, effective_throttle = 0.f, effective_brake = 0.f;
+    bool truck_blew = false, trailer_blew = false;  // a tire blew this frame
+    bool light_brake = false;
+    std::chrono::steady_clock::time_point effect_last{}, effect_last_log{};
+    bool effect_stopped = false;  // Ctrl+Shift+B, for the rest of the session
+    bool stop_key_down = false;
+    bool effect_logged_idle = true;
 };
 
 State g;
+blowout::Engine g_blowout(static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+effect::Shaper g_effect;
+
+// Values for the input device: written at the end of a telemetry frame, read
+// by the game's input callback (both on the main thread [estimate], atomic anyway).
+enum { kInSteering, kInThrottle, kInBrake, kInTrailerBrake, kInCount };
+std::atomic<float> g_input[kInCount];
+scs_log_t g_input_log = nullptr;  // the input API has its own init; may run before telemetry
 
 void Log(scs_log_type_t type, const std::string& msg) {
-    if (g.log) g.log(type, ("[ets2_tire_wear] " + msg).c_str());
+    if (scs_log_t log = g.log ? g.log : g_input_log) log(type, ("[ets2_tire_wear] " + msg).c_str());
 }
 
 std::wstring DocumentsDir() {
@@ -178,7 +212,13 @@ SCSAPI_VOID OnConfig(const scs_event_t, const void* info, const scs_context_t) {
     if (id == SCS_TELEMETRY_CONFIG_truck) unit = 0;
     else if (id.size() > 8 && id.compare(0, 8, "trailer.") == 0) unit = 1 + atoi(id.c_str() + 8);
     tracker::Unit wheels;
+    bool steerable[tracker::kMaxWheels] = {};
+    std::string model, plate;
     for (const scs_named_value_t* a = cfg->attributes; a && a->name; ++a) {
+        if (a->value.type == SCS_VALUE_TYPE_string && a->value.value_string.value) {
+            if (!strcmp(a->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_id)) model = a->value.value_string.value;
+            if (!strcmp(a->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_license_plate)) plate = a->value.value_string.value;
+        }
         text += std::string("  ") + a->name;
         if (a->index != SCS_U32_NIL) text += "[" + std::to_string(a->index) + "]";
         text += " = " + ValueText(a->value) + "\n";
@@ -189,9 +229,20 @@ SCSAPI_VOID OnConfig(const scs_event_t, const void* info, const scs_context_t) {
             wheels.wheel[a->index][2] = a->value.value_fvector.z;
             if (static_cast<int>(a->index) + 1 > wheels.wheel_count) wheels.wheel_count = a->index + 1;
         }
+        if (!strcmp(a->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_wheel_steerable) && a->index < tracker::kMaxWheels &&
+            a->value.type == SCS_VALUE_TYPE_bool)
+            steerable[a->index] = a->value.value_bool.value != 0;
     }
     g.configs[id] = text;
-    if (unit >= 0 && unit < tracker::kMaxUnits) g.unit_wheels[unit] = wheels;  // empty config = unit gone
+    if (unit >= 0 && unit < tracker::kMaxUnits) {
+        g.unit_wheels[unit] = wheels;  // empty config = unit gone
+        std::copy(std::begin(steerable), std::end(steerable), g.steerable[unit]);
+        // Stage 3: the blowout state follows the vehicle (model + plate), so a
+        // dropped trailer keeps its blown tire when picked up again.
+        for (char& c : plate)
+            if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+        g.unit_key[unit] = model.empty() ? "" : (unit == 0 ? "truck|" : "trailer|") + model + "|" + plate;
+    }
 }
 
 std::string PlacementText(const scs_value_dplacement_t& p) {
@@ -213,6 +264,277 @@ std::string TelemetrySnapshot() {
     }
     for (const auto& [id, text] : g.configs) s += "config " + id + ":\n" + text;
     return s;
+}
+
+// ---- stage 3: blowouts ----
+
+SCSAPI_VOID OnS32(const scs_string_t, const scs_u32_t, const scs_value_t* value, const scs_context_t ctx) {
+    if (value && value->type == SCS_VALUE_TYPE_s32) *static_cast<int32_t*>(ctx) = value->value_s32.value;
+}
+
+void BlowoutLog(const std::string& msg) {
+    Log(SCS_LOG_TYPE_message, "blowout: " + msg);
+    if (FILE* f = _wfopen((TireWearDir() + L"\\blowout.log").c_str(), L"ab")) {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        fprintf(f, "%04d-%02d-%02d %02d:%02d:%02d %s\n", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+                msg.c_str());
+        fclose(f);
+    }
+}
+
+void LoadBlowoutParams() {
+    const std::wstring ini = TireWearDir() + L"\\ets2_tire_wear.ini";
+    const wchar_t* file = ini.c_str();
+    auto number = [&](const wchar_t* key, float fallback) {
+        wchar_t buf[32] = {};
+        GetPrivateProfileStringW(L"blowout", key, L"", buf, 32, file);
+        return buf[0] ? wcstof(buf, nullptr) : fallback;
+    };
+    blowout::Params p;
+    p.enabled = GetPrivateProfileIntW(L"blowout", L"enabled", 1, file) == 1;  // on also for INIs from older versions
+    p.start_wear = std::clamp(number(L"start_wear", p.start_wear), 0.f, 0.99f);
+    p.km_at_100 = std::max(1.f, number(L"km_at_100", p.km_at_100));
+    p.curve = std::clamp(number(L"curve", p.curve), 0.1f, 10.f);
+    p.test_after_s = static_cast<int>(GetPrivateProfileIntW(L"blowout", L"test_after_s", 0, file));
+    wchar_t unit[16] = {};
+    GetPrivateProfileStringW(L"blowout", L"test_unit", L"truck", unit, 16, file);
+    p.test_trailer = _wcsicmp(unit, L"trailer") == 0;
+    p.test_wheel = static_cast<int>(GetPrivateProfileIntW(L"blowout", L"test_wheel", -1, file));
+    g_blowout.SetParams(p);
+    char msg[320];
+    snprintf(msg, sizeof(msg), "%s, start_wear %.2f, km_at_100 %.0f, curve %.1f", p.enabled ? "on" : "off", p.start_wear,
+             p.km_at_100, p.curve);
+    std::string text = msg;
+    if (p.test_after_s > 0) {
+        snprintf(msg, sizeof(msg), ", test mode (%s, wheel %d, after %d s)", p.test_trailer ? "trailer" : "truck",
+                 p.test_wheel, p.test_after_s);
+        text += msg;
+    }
+    Log(SCS_LOG_TYPE_message, "blowout: " + text);
+
+    auto effect_number = [&](const wchar_t* key, float fallback) {
+        wchar_t buf[32] = {};
+        GetPrivateProfileStringW(L"effect", key, L"", buf, 32, file);
+        return buf[0] ? wcstof(buf, nullptr) : fallback;
+    };
+    effect::Params e;
+    e.enabled = GetPrivateProfileIntW(L"effect", L"enabled", 1, file) == 1;
+    e.pull = std::clamp(effect_number(L"pull", e.pull), 0.f, 1.f);
+    e.pull_rear = std::clamp(effect_number(L"pull_rear", e.pull_rear), 0.f, 1.f);
+    e.kick = std::clamp(effect_number(L"kick", e.kick), 1.f, 5.f);
+    e.kick_s = std::clamp(effect_number(L"kick_s", e.kick_s), 0.f, 5.f);
+    e.kick_brake = std::clamp(effect_number(L"kick_brake", e.kick_brake), 0.f, 1.f);
+    e.kick_brake_s = std::clamp(effect_number(L"kick_brake_s", e.kick_brake_s), 0.f, 10.f);
+    e.throttle_cut = std::clamp(effect_number(L"throttle_cut", e.throttle_cut), 0.f, 1.f);
+    e.trailer_throttle_cut = std::clamp(effect_number(L"trailer_throttle_cut", e.trailer_throttle_cut), 0.f, 1.f);
+    e.trailer_hold = std::clamp(effect_number(L"trailer_hold", e.trailer_hold), 0.f, 1.f);
+    e.truck_trailer_hold = std::clamp(effect_number(L"truck_trailer_hold", e.truck_trailer_hold), 0.f, 1.f);
+    e.trailer_pedal = std::clamp(effect_number(L"trailer_pedal", e.trailer_pedal), 0.f, 1.f);
+    e.min_speed_kmh = std::max(0.f, effect_number(L"min_speed_kmh", e.min_speed_kmh));
+    e.full_speed_kmh = std::max(1.f, effect_number(L"full_speed_kmh", e.full_speed_kmh));
+    e.steer_invert = GetPrivateProfileIntW(L"effect", L"steer_invert", 0, file) == 1;
+    g_effect.SetParams(e);
+    snprintf(msg, sizeof(msg),
+             "%s, pull %.2f (rear x%.2f, kick x%.1f for %.1f s), brake tap %.2f for %.1f s, throttle cut %.2f "
+             "(trailer %.2f), trailer_hold %.2f (truck tire %.2f) + pedal %.2f%s",
+             e.enabled ? "on" : "off", e.pull, e.pull_rear, e.kick, e.kick_s, e.kick_brake, e.kick_brake_s,
+             e.throttle_cut, e.trailer_throttle_cut, e.trailer_hold, e.truck_trailer_hold, e.trailer_pedal,
+             e.steer_invert ? ", steer inverted" : "");
+    Log(SCS_LOG_TYPE_message, std::string("effect: ") + msg);
+}
+
+// Blowouts are a single-player feature: off in a Convoy session (official
+// multiplayer, seen in the telemetry) and with TruckersMP (its client module
+// in the game process [estimate: module names to be confirmed]).
+bool InMultiplayer() {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - g.last_mp_check > std::chrono::seconds(5)) {
+        g.last_mp_check = now;
+        g.truckersmp = GetModuleHandleW(L"core_ets2mp.dll") != nullptr || GetModuleHandleW(L"core_atsmp.dll") != nullptr;
+    }
+    return g.mp_offset != 0 || g.truckersmp;
+}
+
+std::string UnitName(int unit, bool pt) {
+    if (unit == 0) return pt ? "Caminhao" : "truck";
+    return (pt ? "Carreta " : "trailer ") + std::to_string(unit - 1);
+}
+
+std::string WheelText(const blowout::WheelPos& w, bool pt) {
+    if (!w.axle) return pt ? "roda ?" : "wheel ?";
+    char b[64];
+    snprintf(b, sizeof(b), pt ? "eixo %d de %d, %s" : "axle %d of %d, %s", w.axle, w.axles,
+             pt ? (w.left ? "esquerda" : "direita") : (w.left ? "left" : "right"));
+    return b;
+}
+
+// Once per frame: distance since the last frame, a draw per present unit,
+// repairs, the test blowout, the HUD alert and the saved state.
+void BlowoutStep(const float* wear, const tracker::Unit* units) {
+    const blowout::Params& p = g_blowout.params();
+    const auto now = std::chrono::steady_clock::now();
+    const double dt = g.last_frame.time_since_epoch().count() ? std::chrono::duration<double>(now - g.last_frame).count() : 0.0;
+    g.last_frame = now;
+    double km = 0.0;
+    if (!g.paused && g.odometer_km > 0.f) {
+        // More than 1 km in one frame is a jump (ferry, train, profile change), not driving.
+        if (g.last_odometer >= 0.0) km = g.odometer_km - g.last_odometer;
+        if (km < 0.0 || km > 1.0) km = 0.0;
+        g.last_odometer = g.odometer_km;
+    }
+    const bool mp = InMultiplayer();
+    if (mp && !g.mp_logged) {
+        g.mp_logged = true;
+        BlowoutLog(std::string("multiplayer (") + (g.truckersmp ? "TruckersMP" : "Convoy") + "): no blowouts in this session");
+    }
+    bool changed = false;
+    std::string alert;
+    g.truck_blew = g.trailer_blew = false;
+    for (int u = 0; u < tracker::kMaxUnits; ++u) {
+        if (units[u].wheel_count <= 0 || g.unit_key[u].empty()) continue;
+        const std::string& key = g.unit_key[u];
+        blowout::Change ch = g_blowout.Step(key, wear[u], units[u].wheel_count, km, !mp);
+        const bool test_unit = u == (p.test_trailer ? 1 : 0);
+        bool test = false;
+        if (test_unit && p.test_after_s > 0 && !g.test_done && !mp && !g.paused && g.speed_ms > 2.f) {
+            g.test_drive_s += dt;
+            if (g.test_drive_s >= p.test_after_s) {
+                g.test_done = true;
+                if (!g_blowout.Get(key).active) {
+                    // A test blowout lasts for this session only: at ~0% wear it could
+                    // never be seen as repaired [verified: E2 test, blew at 0.0%].
+                    ch = g_blowout.Force(key, wear[u], units[u].wheel_count, p.test_wheel, true);
+                    test = true;
+                }
+            }
+        }
+        const blowout::Burst b = g_blowout.Get(key);
+        const blowout::WheelPos where = blowout::Locate(units[u].wheel, units[u].wheel_count, b.wheel);
+        if (ch == blowout::Change::kBlown) {
+            changed = true;
+            (u == 0 ? g.truck_blew : g.trailer_blew) = true;
+            char msg[256];
+            snprintf(msg, sizeof(msg), "%s tire blew: wheel %d (%s) at %.1f%% wear, odometer %.1f km%s [%s]",
+                     UnitName(u, false).c_str(), b.wheel, WheelText(where, false).c_str(), wear[u] * 100.f,
+                     g.odometer_km, test ? ", test (this session only)" : "", key.c_str());
+            BlowoutLog(msg);
+        } else if (ch == blowout::Change::kRepaired) {
+            changed = true;
+            char msg[160];
+            snprintf(msg, sizeof(msg), "%s repaired (wear now %.1f%%) [%s]", UnitName(u, false).c_str(), wear[u] * 100.f,
+                     key.c_str());
+            BlowoutLog(msg);
+        }
+        if (b.active && !mp) alert += "PNEU ESTOURADO: " + UnitName(u, true) + ", " + WheelText(where, true) + "\n";
+    }
+    if (changed) g_blowout.Save(TireWearDir() + L"\\blowout_state.txt");
+    if (!alert.empty()) alert.pop_back();
+    if (!alert.empty() && g.effect_stopped) alert += "\n(efeito parado: Ctrl+Shift+B)";
+    overlay::SetAlert(alert);
+}
+
+// E2: what the blown tires do to the truck, handed to the input device. A
+// truck tire pulls to its side and drags; a trailer tire only drags.
+void EffectStep(const tracker::Unit* units) {
+    const auto now = std::chrono::steady_clock::now();
+    const double dt =
+        g.effect_last.time_since_epoch().count() ? std::chrono::duration<double>(now - g.effect_last).count() : 0.0;
+    g.effect_last = now;
+    // Ctrl+Shift+B stops the effect for the rest of the session (a way out while testing).
+    const bool key = (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(VK_SHIFT) & 0x8000) &&
+                     (GetAsyncKeyState('B') & 0x8000);
+    if (key && !g.stop_key_down && !g.effect_stopped) {
+        g.effect_stopped = true;
+        BlowoutLog("effect stopped with Ctrl+Shift+B for this session");
+    }
+    g.stop_key_down = key;
+
+    effect::Input in;
+    in.allow = !g.paused && !InMultiplayer() && !g.effect_stopped;
+    in.speed_kmh = g.speed_ms * 3.6f;
+    in.truck_blew = g.truck_blew;
+    in.trailer_blew = g.trailer_blew;
+    in.trailer_attached = g.trailer_connected[0];
+    for (int u = 0; u < tracker::kMaxUnits; ++u) {
+        if (units[u].wheel_count <= 0 || g.unit_key[u].empty()) continue;
+        const blowout::Burst b = g_blowout.Get(g.unit_key[u]);
+        if (!b.active || b.wheel < 0 || b.wheel >= units[u].wheel_count) continue;
+        if (u == 0) {
+            in.truck = true;
+            in.truck_steered = g.steerable[0][b.wheel];
+            in.truck_left = units[0].wheel[b.wheel][0] < 0.f;  // x < 0 = left [estimate]
+        } else {
+            in.trailer = true;
+        }
+    }
+    const effect::Output out = g_effect.Update(in, dt);
+    g_input[kInSteering] = out.steering;
+    g_input[kInThrottle] = out.throttle;
+    g_input[kInBrake] = out.brake;
+    g_input[kInTrailerBrake] = out.trailer_brake;
+
+    // Twice a second while anything is going on: what we send and what the
+    // game made of it (sum with the wheel, pull side, brake lights).
+    const bool busy = in.truck || in.trailer || out.steering != 0.f || out.throttle != 0.f || out.brake != 0.f ||
+                      out.trailer_brake != 0.f;
+    if (!busy) {
+        if (!g.effect_logged_idle) {
+            g.effect_logged_idle = true;
+            if (FILE* f = _wfopen((TireWearDir() + L"\\effect.log").c_str(), L"ab")) {
+                fprintf(f, "idle\n");
+                fclose(f);
+            }
+        }
+        return;
+    }
+    if (now - g.effect_last_log < std::chrono::milliseconds(500)) return;
+    g.effect_last_log = now;
+    if (FILE* f = _wfopen((TireWearDir() + L"\\effect.log").c_str(), L"ab")) {
+        if (g.effect_logged_idle)
+            fprintf(f, "time,speed_kmh,source,allow,send_steering,send_throttle,send_brake,send_trailer_brake,"
+                       "input_steering,effective_steering,effective_throttle,effective_brake,light_brake\n");
+        g.effect_logged_idle = false;
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        const char* source = in.truck ? (in.truck_steered ? (in.truck_left ? "truck_steered_left" : "truck_steered_right")
+                                                          : (in.truck_left ? "truck_left" : "truck_right"))
+                                      : in.trailer ? "trailer" : "-";
+        fprintf(f, "%02d:%02d:%02d.%03d,%.1f,%s%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n", st.wHour,
+                st.wMinute, st.wSecond, st.wMilliseconds, in.speed_kmh, source, in.truck && in.trailer ? "+trailer" : "",
+                in.allow ? 1 : 0, out.steering, out.throttle, out.brake, out.trailer_brake, g.input_steering,
+                g.effective_steering, g.effective_throttle, g.effective_brake, g.light_brake ? 1 : 0);
+        fclose(f);
+    }
+}
+
+// ---- E2: input device (SCS Input API, semantical) ----
+
+const scs_input_device_input_t kInputs[kInCount] = {
+    {"steering", "Steering", SCS_VALUE_TYPE_float},
+    {"aforward", "Throttle", SCS_VALUE_TYPE_float},
+    {"abackward", "Brake", SCS_VALUE_TYPE_float},
+    {"trailerbrake", "Trailer brake", SCS_VALUE_TYPE_float},
+};
+
+SCSAPI_VOID OnInputActive(const scs_u8_t active, const scs_context_t) {
+    Log(SCS_LOG_TYPE_message, std::string("effect input device ") + (active ? "active" : "inactive"));
+}
+
+// Called repeatedly each frame until it says "no more": one event per input
+// whose value changed (all of them again after the device is re-activated).
+SCSAPI_RESULT OnInputEvent(scs_input_event_t* const event_info, const scs_u32_t flags, const scs_context_t) {
+    static float sent[kInCount] = {NAN, NAN, NAN, NAN};
+    if (flags & SCS_INPUT_EVENT_CALLBACK_FLAG_first_after_activation) std::fill(std::begin(sent), std::end(sent), NAN);
+    for (scs_u32_t i = 0; i < kInCount; ++i) {
+        const float v = g_input[i].load();
+        if (v == sent[i]) continue;  // NaN never equals, so a reset resends
+        sent[i] = v;
+        event_info->input_index = i;
+        event_info->value_float.value = v;
+        return SCS_RESULT_ok;
+    }
+    return SCS_RESULT_not_found;
 }
 
 // ---- event callbacks ----
@@ -266,12 +588,18 @@ SCSAPI_VOID OnFrameEnd(const scs_event_t, const void*, const scs_context_t) {
     }
     tire_probe::SetUnitWear(wear, tracker::kMaxUnits);
     tracker::SetUnits(units, tracker::kMaxUnits);
+    BlowoutStep(wear, units);
+    EffectStep(units);
     present_probe::Tick();
     FlushProbeMessages();
 }
 
 SCSAPI_VOID OnPause(const scs_event_t ev, const void*, const scs_context_t) {
     g.paused = (ev == SCS_TELEMETRY_EVENT_paused);
+    if (g.paused) {
+        // The input device may still be asked for values while paused: let go now.
+        for (auto& v : g_input) v = 0.f;
+    }
 }
 
 template <typename T>
@@ -333,7 +661,18 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
                         &g.trailer_placement[i]);
     }
 
-    g.probe_cfg = present_probe::LoadConfig(TireWearDir());
+    RegisterChannel(reg, SCS_TELEMETRY_CHANNEL_multiplayer_time_offset, SCS_VALUE_TYPE_s32, OnS32, &g.mp_offset);
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_input_steering, SCS_VALUE_TYPE_float, OnFloat, &g.input_steering);
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_steering, SCS_VALUE_TYPE_float, OnFloat,
+                    &g.effective_steering);
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_throttle, SCS_VALUE_TYPE_float, OnFloat,
+                    &g.effective_throttle);
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_effective_brake, SCS_VALUE_TYPE_float, OnFloat, &g.effective_brake);
+    RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_light_brake, SCS_VALUE_TYPE_bool, OnBool, &g.light_brake);
+
+    g.probe_cfg = present_probe::LoadConfig(TireWearDir());  // also creates the INI when missing
+    LoadBlowoutParams();
+    if (g_blowout.Load(TireWearDir() + L"\\blowout_state.txt")) Log(SCS_LOG_TYPE_message, "blowout: state loaded");
     if (g.probe_cfg.tires_log) {
         // R2 must see the world's textures being created, so hook now
         // (before the profile / world loads) instead of after the delay.
@@ -365,6 +704,34 @@ SCSAPI_VOID scs_telemetry_shutdown(void) {
         fclose(g.csv);
         g.csv = nullptr;
     }
+    for (auto& v : g_input) v = 0.f;
     Log(SCS_LOG_TYPE_message, "shutdown");
     g.log = nullptr;
+}
+
+// E2: the same DLL is also an input plugin. A semantical device needs no
+// binding: its inputs go straight into the game's mixes of the same name.
+SCSAPI_RESULT scs_input_init(const scs_u32_t version, const scs_input_init_params_t* const params) {
+    if (version != SCS_INPUT_VERSION_1_00) return SCS_RESULT_unsupported;
+    const auto* p = static_cast<const scs_input_init_params_v100_t*>(params);
+    g_input_log = p->common.log;
+    for (auto& v : g_input) v = 0.f;
+    scs_input_device_t device{};
+    device.name = "tire_wear_effect";
+    device.display_name = "Tire Wear effect";
+    device.type = SCS_INPUT_DEVICE_TYPE_semantical;
+    device.input_count = kInCount;
+    device.inputs = kInputs;
+    device.input_active_callback = OnInputActive;
+    device.input_event_callback = OnInputEvent;
+    const scs_result_t r = p->register_device(&device);
+    Log(r == SCS_RESULT_ok ? SCS_LOG_TYPE_message : SCS_LOG_TYPE_error,
+        "effect input device " + std::string(r == SCS_RESULT_ok ? "registered" : "NOT registered, result ") +
+            (r == SCS_RESULT_ok ? "" : std::to_string(r)));
+    return r == SCS_RESULT_ok ? SCS_RESULT_ok : SCS_RESULT_generic_error;
+}
+
+SCSAPI_VOID scs_input_shutdown(void) {
+    for (auto& v : g_input) v = 0.f;
+    g_input_log = nullptr;
 }
