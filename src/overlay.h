@@ -1,5 +1,6 @@
-// Test C: a small HUD drawn with Dear ImGui from the Present detour, showing
-// the per-unit average wheel wear read from the telemetry SDK.
+// Drawing with Dear ImGui from the Present detour: the test HUD (test C: the
+// per-unit average wheel wear and the blown tires, off by default) and the
+// blown tire notice (T4, see notice.h).
 #pragma once
 
 #include <string>
@@ -12,6 +13,8 @@ struct Settings {
     float scale = 1.6f;  // ImGui font scale (default font is 13 px)
     int x = 20;          // top-left corner, in back buffer pixels
     int y = 20;
+    bool hud = false;     // test HUD in the corner
+    bool notice = false;  // blown tire notice
 };
 
 void Configure(const Settings& s, void (*log)(const std::string&));

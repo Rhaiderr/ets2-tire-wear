@@ -32,6 +32,7 @@
 
 #include "blowout.h"
 #include "effect.h"
+#include "notice.h"
 #include "overlay.h"
 #include "player_tracker.h"
 #include "present_probe.h"
@@ -46,6 +47,7 @@ constexpr double kLogIntervalSec = 1.0;
 struct State {
     scs_log_t log = nullptr;
     bool ats = false;  // American Truck Simulator (game_id "ats"); otherwise ETS2
+    bool lang_pt = false;  // T5: the game is in Portuguese (notices); otherwise English
     FILE* csv = nullptr;
     bool paused = true;
     float speed_ms = 0.f;
@@ -122,6 +124,27 @@ std::wstring TireWearDir() {
                        L"\\TireWear";
     CreateDirectoryW(dir.c_str(), nullptr);
     return dir;
+}
+
+// T5: the game's language from its config.cfg (`uset g_lang "pt_br"`, or
+// `g_lang_init` [verified: vega 122, ETS2 and ATS]). Notices are in Portuguese
+// for pt_br/pt_pt and in English for any other language.
+bool GameLanguagePt() {
+    std::wstring path = TireWearDir();
+    path = path.substr(0, path.rfind(L'\\')) + L"\\config.cfg";
+    FILE* f = _wfopen(path.c_str(), L"rb");
+    if (!f) return false;
+    std::string lang, lang_init;
+    char line[512];
+    while (fgets(line, sizeof(line), f)) {
+        char name[64] = {}, value[64] = {};
+        if (sscanf(line, " uset %63s \"%63[^\"]\"", name, value) != 2) continue;
+        if (strcmp(name, "g_lang") == 0) lang = value;
+        else if (strcmp(name, "g_lang_init") == 0) lang_init = value;
+    }
+    fclose(f);
+    if (lang.empty()) lang = lang_init;
+    return lang.compare(0, 2, "pt") == 0;
 }
 
 void FlushProbeMessages() {
@@ -393,6 +416,23 @@ std::string WheelText(const blowout::WheelPos& w, bool pt) {
     return b;
 }
 
+// T4: the notice for a tire that just blew, in the game's language (UTF-8).
+void ShowBlowoutNotice(int unit, const blowout::WheelPos& w, bool test) {
+    const bool pt = g.lang_pt;
+    std::string who = unit == 0 ? (pt ? "Caminh\xC3\xA3o" : "Truck") : (pt ? "Carreta" : "Trailer");
+    if (unit > 1) who += " " + std::to_string(unit);
+    char where[96];
+    if (w.axle)
+        snprintf(where, sizeof(where), pt ? "%s: eixo %d, lado %s." : "%s: axle %d, %s side.", who.c_str(), w.axle,
+                 pt ? (w.left ? "esquerdo" : "direito") : (w.left ? "left" : "right"));
+    else
+        snprintf(where, sizeof(where), "%s.", who.c_str());
+    std::string title = pt ? "Pneu estourado!" : "Tire blown!";
+    if (test) title += pt ? " (teste)" : " (test)";
+    notice::Show(title, std::string(where) + "\n" +
+                            (pt ? "Troque o pneu na oficina." : "Replace the tire at a service station."));
+}
+
 // Once per frame: distance since the last frame, a draw per present unit,
 // repairs, the test blowout, the HUD alert and the saved state.
 void BlowoutStep(const float* wear, const tracker::Unit* units) {
@@ -439,6 +479,7 @@ void BlowoutStep(const float* wear, const tracker::Unit* units) {
             changed = true;
             (u == 0 ? g.truck_blew : g.trailer_blew) = true;
             if (g.sound && !g.paused && g_effect.params().enabled) tire_audio::Bang(g.sound_volume);
+            if (!mp) ShowBlowoutNotice(u, where, test);
             char msg[256];
             snprintf(msg, sizeof(msg), "%s tire blew: wheel %d (%s) at %.1f%% wear, odometer %.1f km%s [%s]",
                      UnitName(u, false).c_str(), b.wheel, WheelText(where, false).c_str(), wear[u] * 100.f,
@@ -721,6 +762,8 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_light_brake, SCS_VALUE_TYPE_bool, OnBool, &g.light_brake);
 
     g.probe_cfg = present_probe::LoadConfig(TireWearDir());  // also creates the INI when missing
+    g.lang_pt = GameLanguagePt();
+    Log(SCS_LOG_TYPE_message, std::string("notice language: ") + (g.lang_pt ? "Portuguese" : "English"));
     LoadBlowoutParams();
     if (g_blowout.Load(TireWearDir() + L"\\blowout_state.txt")) Log(SCS_LOG_TYPE_message, "blowout: state loaded");
     if (g.probe_cfg.tires_log) {

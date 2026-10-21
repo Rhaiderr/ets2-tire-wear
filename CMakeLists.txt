@@ -49,7 +49,8 @@ configure_file("${CATALOG_CPP}.tmp" "${CATALOG_CPP}" COPYONLY)
 
 # The game loads the plugin as a plain DLL exporting scs_telemetry_init/shutdown.
 add_library(ets2_tire_wear SHARED src/plugin.cpp src/present_probe.cpp src/overlay.cpp src/tire_probe.cpp
-    src/wear_transform.cpp src/player_tracker.cpp src/blowout.cpp src/effect.cpp src/tire_audio.cpp "${CATALOG_CPP}"
+    src/wear_transform.cpp src/player_tracker.cpp src/blowout.cpp src/effect.cpp src/tire_audio.cpp src/notice.cpp
+    src/resources.rc "${CATALOG_CPP}"
     src/exports.def)
 target_include_directories(ets2_tire_wear PRIVATE third_party/scs_sdk/include)
 target_compile_definitions(ets2_tire_wear PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)

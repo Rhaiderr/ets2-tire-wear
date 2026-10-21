@@ -25,6 +25,7 @@
 #include <thread>
 
 #include "MinHook.h"
+#include "notice.h"
 #include "overlay.h"
 #include "tire_probe.h"
 
@@ -477,12 +478,18 @@ Config LoadConfig(const std::wstring& tirewear_dir) {
                   "probe = 1\r\n"
                   "; 1 = also detour Present (count frames); needs probe = 1\r\n"
                   "hook = 1\r\n"
-                  "; 1 = draw the wear HUD from the Present detour; needs hook = 1\r\n"
+                  "; 1 = test HUD in the corner (wear per unit, blown tires); needs hook = 1\r\n"
                   "overlay = 0\r\n"
                   "; HUD font scale and top-left position in pixels\r\n"
                   "overlay_scale = 1.6\r\n"
                   "overlay_x = 20\r\n"
                   "overlay_y = 20\r\n"
+                  "; 1 = notice at the top of the screen when a tire blows (game style); needs hook = 1\r\n"
+                  "notice = 1\r\n"
+                  "; seconds on screen, gap from the top (1/900 of the screen height) and size\r\n"
+                  "notice_s = 8\r\n"
+                  "notice_top = 60\r\n"
+                  "notice_scale = 1\r\n"
                   "; seconds to wait after the first unpaused frame\r\n"
                   "delay_s = 10\r\n"
                   "[tires]\r\n"
@@ -585,6 +592,17 @@ Config LoadConfig(const std::wstring& tirewear_dir) {
     if (!(c.overlay_scale >= 0.5f && c.overlay_scale <= 5.f)) c.overlay_scale = 1.6f;
     c.overlay_x = static_cast<int>(GetPrivateProfileIntW(L"present", L"overlay_x", 20, p));
     c.overlay_y = static_cast<int>(GetPrivateProfileIntW(L"present", L"overlay_y", 20, p));
+    // On also for INIs from older versions (no key).
+    c.notice = c.hook && GetPrivateProfileIntW(L"present", L"notice", 1, p) == 1;
+    GetPrivateProfileStringW(L"present", L"notice_s", L"8", buf, 32, p);
+    c.notice_s = wcstof(buf, nullptr);
+    if (!(c.notice_s >= 1.f && c.notice_s <= 60.f)) c.notice_s = 8.f;
+    GetPrivateProfileStringW(L"present", L"notice_top", L"60", buf, 32, p);
+    c.notice_top = wcstof(buf, nullptr);
+    if (!(c.notice_top >= 0.f && c.notice_top <= 800.f)) c.notice_top = 60.f;
+    GetPrivateProfileStringW(L"present", L"notice_scale", L"1", buf, 32, p);
+    c.notice_scale = wcstof(buf, nullptr);
+    if (!(c.notice_scale >= 0.5f && c.notice_scale <= 3.f)) c.notice_scale = 1.f;
     c.tires_log = c.hook && GetPrivateProfileIntW(L"tires", L"log", 0, p) == 1;
     c.tires_capture = c.tires_log && GetPrivateProfileIntW(L"tires", L"capture", 0, p) == 1;
     c.capture_delay_sec = static_cast<int>(GetPrivateProfileIntW(L"tires", L"capture_delay_s", 30, p));
@@ -606,7 +624,7 @@ void Start(const std::wstring& tirewear_dir, const Config& c) {
         g_file = _wfopen((tirewear_dir + L"\\present_probe.log").c_str(), L"ab");
     }
     g_hook_enabled = c.hook;
-    g_overlay_enabled = c.overlay;
+    g_overlay_enabled = c.overlay || c.notice;
     if (c.tires_log) {
         tire_probe::SetLog(&Emit);
         std::string err;
@@ -646,7 +664,14 @@ void Start(const std::wstring& tirewear_dir, const Config& c) {
     s.scale = c.overlay_scale;
     s.x = c.overlay_x;
     s.y = c.overlay_y;
+    s.hud = c.overlay;
+    s.notice = c.notice;
     overlay::Configure(s, &Emit);
+    notice::Style ns;
+    ns.seconds = c.notice_s;
+    ns.top = c.notice_top;
+    ns.scale = c.notice_scale;
+    notice::Configure(ns);
     g_thread = std::thread(Run);
 }
 

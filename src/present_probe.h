@@ -11,7 +11,11 @@ namespace present_probe {
 struct Config {
     bool probe = false;    // test A: locate and log
     bool hook = false;     // test B: counting detours (needs probe)
-    bool overlay = false;  // test C: HUD (needs hook)
+    bool overlay = false;  // test C: test HUD, wear per unit (needs hook)
+    bool notice = false;   // T4: blown tire notice at the top of the screen (needs hook)
+    float notice_s = 8.f;
+    float notice_top = 60.f;  // UI units (1/900 of the screen height)
+    float notice_scale = 1.f;
     int delay_sec = 10;
     float overlay_scale = 1.6f;
     int overlay_x = 20;

@@ -1,0 +1,3 @@
+// Built into the DLL: the notice font (Rubik Regular, SIL Open Font License 1.1,
+// third_party/rubik/OFL.txt). 101 = kFontResource in overlay.cpp.
+101 RCDATA "../third_party/rubik/rubik-latin-400.ttf"
