@@ -8,6 +8,8 @@
 
 > **Versão alpha.** Funciona no meu ambiente, mas ainda está sendo testada com outras pessoas. Use em single player e faça backup do seu perfil se quiser segurança extra.
 
+> **Os pneus podem estourar.** A partir de 60% de desgaste, um pneu pode estourar enquanto você dirige: o caminhão puxa para o lado e fica limitado a 60 km/h até você trocar os pneus. Isso vem ligado. Para desligar, use `[blowout] enabled = 0` no INI ([detalhes](#estouro-de-pneu)).
+
 > **Pneus de mods ainda não são compatíveis.** Só os pneus do jogo base e das DLCs oficiais (Goodyear, Michelin) ganham a aparência gasta. Se você colocar um pneu de mod, o plugin não o reconhece e o desgaste visual simplesmente não acontece: esse pneu fica com a aparência original. Nada quebra, e os outros pneus continuam funcionando.
 
 Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra os pneus do **seu** caminhão e das **suas** carretas gastos de acordo com o **desgaste real** do jogo. O jogo já calcula o desgaste de cada roda (você vê no menu de manutenção), mas o pneu continua visualmente novo. Com o plugin, a banda de rodagem vai perdendo o desenho até ficar quase lisa.
@@ -23,6 +25,7 @@ Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra
 - **Gasta só a banda de rodagem**: a lateral do pneu, as letras e o aro ficam intactos.
 - **Só nos seus veículos**: os pneus do tráfego continuam novos, e isso vale também nos retrovisores.
 - **Sem arquivos do jogo modificados**: nenhum `.scs` é alterado. As texturas gastas são criadas na memória, a partir das texturas originais, enquanto o jogo roda.
+- **Estouro de pneu**: pneus muito gastos podem estourar, com aviso, som, pneu rasgado e efeito na direção ([detalhes](#estouro-de-pneu)).
 
 ### Como o desgaste aparece
 
@@ -42,6 +45,52 @@ O ATS tem pneus próprios (medidas e desenhos americanos), e eles recebem o mesm
 
 ![Seis modelos de pneu do ATS a 0, 57 e 100%](docs/images/ats_modelos.png)
 
+## Estouro de pneu
+
+O jogo não tem estouro de pneu, então o plugin cria um. A partir de 60% de desgaste, cada veículo (o caminhão e cada carreta) tem uma chance de estourar um pneu a cada quilômetro. Essa chance cresce com o desgaste:
+
+| Desgaste | Distância média até estourar |
+|---|---|
+| até 60% | nunca estoura |
+| 70% | ~19.000 km |
+| 80% | ~2.400 km |
+| 90% | ~700 km |
+| 100% | ~300 km |
+
+### Quando um pneu estoura
+
+- **Aviso** no topo da tela, no estilo dos avisos do jogo, dizendo qual pneu estourou (veículo, eixo e lado). O texto segue o idioma do jogo: português quando o jogo está em português, inglês nos outros idiomas.
+
+  ![Aviso de pneu estourado em português e em inglês](docs/images/aviso_estouro.png)
+
+- **Som** do estouro e, depois, do pneu rasgado batendo no asfalto no ritmo da roda.
+- **Pneu rasgado** só na roda que estourou: a malha de aço aparece na banda de rodagem e a lateral ganha um rasgo de tamanho sorteado. Tudo isso por cima do desgaste que o pneu já tinha.
+
+  ![Pneu dianteiro esquerdo estourado no jogo, sobre um pneu já gasto](docs/images/pneu_estourado_jogo.png)
+
+  *No jogo: pneu dianteiro esquerdo estourado num Scania, por cima de um desgaste de 86%.*
+
+  ![Banda nova, estourada a 0% e estourada a 57% de desgaste, e o rasgo na lateral](docs/images/pneu_estourado.png)
+
+  *Pneu Goodyear KMAX D: banda nova, estourada a 0% de desgaste, estourada a 57% e a lateral com o rasgo. Imagens da ferramenta de prévia do projeto.*
+
+- **Efeito no caminhão:**
+  - **Pneu do caminhão:** dá um tranco para o lado do pneu estourado e, depois, o caminhão continua puxando para esse lado, com uma vibração leve no volante. Ele também fica mais pesado.
+  - **Pneu da carreta:** o caminhão só fica mais pesado, sem puxar o volante.
+  - **Mais pesado** quer dizer menos acelerador e, com carreta engatada, o freio da carreta a 35%, que **não acende** a luz de freio. Só no momento do estouro há um toque curto no freio, e aí a luz pisca.
+  - **Limite de velocidade:** 60 km/h com pneu do caminhão estourado e 70 km/h quando só a carreta tem pneu estourado. Com pedal analógico, o acelerador é cortado aos poucos perto do limite. Se você passar 8 km/h do limite (numa descida, por exemplo), entra o freio, e a luz acende.
+
+### Conserto e desligamento
+
+- **Conserto:** troque os pneus na oficina. O estouro acaba quando o desgaste daquele veículo cai (pelo menos 5 pontos, ou metade do desgaste que ele tinha no estouro, o que for menor). Até lá, o estouro continua mesmo se você sair e voltar ao jogo.
+- **Multiplayer:** no Convoy e no TruckersMP os pneus não estouram.
+- **Desligar:**
+  - `[blowout] enabled = 0` desliga os estouros;
+  - `[effect] enabled = 0` mantém os estouros (aviso e pneu rasgado), mas tira o efeito no caminhão e o som;
+  - **Ctrl+Shift+B** no jogo para o efeito e a batida do pneu até o fim da sessão.
+
+O efeito é somado ao seu volante e aos pedais pelos controles oficiais do SDK da SCS. Nenhuma memória do jogo é alterada. No **teclado**, o jogo não deixa o plugin reduzir o acelerador, então o limite de velocidade só age pelo freio, a partir de 8 km/h acima do limite.
+
 ## Compatibilidade
 
 | Item | Situação |
@@ -53,9 +102,10 @@ O ATS tem pneus próprios (medidas e desenhos americanos), e eles recebem o mesm
 | Pneus (ATS) | Os 42 pares de textura de caminhão e carreta do jogo base, das DLCs de pneus **Goodyear** e **Michelin** e o pneu Duty da DLC de rodas (`dlc_rims`) |
 | Pneus de mods | **Ainda não são compatíveis**: sem desgaste visual, o pneu fica com a aparência original |
 | Caminhões e carretas de mods | Devem funcionar, porque a separação jogador × tráfego usa a posição das rodas e não o modelo |
-| TruckersMP | **Não testado** |
+| TruckersMP | **Não testado.** Os estouros se desligam sozinhos no TruckersMP e no Convoy |
+| Controles (estouro) | Testado no **teclado**. Com volante e force feedback, ainda está em teste |
 | Outros mods gráficos | Testado junto com um mod de iluminação que também usa `dxgi.dll` / `dinput8.dll` sem conflito |
-| Desempenho | Sem perda de FPS nos testes. Cada textura de pneu gera 7 versões gastas numa thread separada: ~0,15 s para 512 px, ~0,7 s para 1024 px, só no carregamento |
+| Desempenho | Sem perda de FPS nos testes. Cada textura de pneu gera 7 versões gastas numa thread separada: ~0,15 s para 512 px, ~0,7 s para 1024 px, só no carregamento. O pneu rasgado é feito uma vez por estouro, também numa thread separada (~75 ms para 1024 px) |
 
 ## Instalação
 
@@ -74,18 +124,30 @@ O desgaste aparece conforme o pneu desgasta no seu save. Num pneu novo não muda
 
 ## Configuração
 
-O arquivo fica em `Documentos\<jogo>\TireWear\ets2_tire_wear.ini` (um por jogo) e é criado com os valores padrão abaixo na primeira execução. Edite com o jogo fechado.
+O arquivo fica em `Documentos\<jogo>\TireWear\ets2_tire_wear.ini` (um por jogo) e é criado com os valores padrão abaixo na primeira execução. Cada chave tem um comentário explicando o que faz. Edite com o jogo fechado.
 
-| Chave | Padrão | Para que serve |
-|---|---|---|
-| `wear_levels` | `1` | Liga os pneus gastos (`0` desliga) |
-| `separate` | `1` | Só os seus veículos gastam (`0` gasta também o tráfego, pela regra da pasta da textura) |
-| `levels` | `8` | Quantidade de níveis de desgaste |
-| `wear_override` | `-1` | Teste: `0.0` a `1.0` força esse desgaste em todos os pneus; `-1` usa a telemetria |
-| `overlay` | `0` | `1` mostra um painel com o desgaste médio do caminhão e de cada carreta |
-| `capture` | `0` | Diagnóstico: grava os dados das rodas desenhadas num arquivo `tire_capture_*.txt` |
-| `tint_test` | `0` | Diagnóstico: pinta os pneus trocados de magenta |
-| `probe`, `hook`, `log` | `1` | Precisam ficar em `1` para o plugin funcionar |
+| Seção | Chave | Padrão | Para que serve |
+|---|---|---|---|
+| `[tires]` | `wear_levels` | `1` | Liga os pneus gastos (`0` desliga) |
+| `[tires]` | `separate` | `1` | Só os seus veículos gastam (`0` gasta também o tráfego, pela regra da pasta da textura) |
+| `[tires]` | `levels` | `8` | Quantidade de níveis de desgaste |
+| `[tires]` | `wear_override` | `-1` | Teste: `0.0` a `1.0` força esse desgaste em todos os pneus; `-1` usa a telemetria |
+| `[present]` | `notice` | `1` | Aviso no topo da tela quando um pneu estoura (`0` desliga) |
+| `[present]` | `notice_s`, `notice_top`, `notice_scale` | `8`, `60`, `1` | Tempo do aviso na tela (segundos), distância do topo (em 1/900 da altura da tela) e tamanho |
+| `[present]` | `overlay` | `0` | Teste: `1` mostra um quadro no canto com o desgaste médio do caminhão e de cada carreta e os pneus estourados |
+| `[blowout]` | `enabled` | `1` | Liga os estouros (`0` desliga) |
+| `[blowout]` | `start_wear`, `km_at_100`, `curve` | `0.60`, `300`, `3` | Desgaste a partir do qual um pneu pode estourar, distância média até estourar a 100% e quão rápido a chance cresce |
+| `[blowout]` | `test_after_s` | `0` | Teste: estoura um pneu depois de tantos segundos dirigindo (vale só naquela sessão). Escolha o pneu com `test_unit` (`truck` ou `trailer`) e `test_wheel` (`-1` = sorteado) |
+| `[effect]` | `enabled` | `1` | Efeito do estouro no caminhão (puxada, peso e limite de velocidade) e som (`0` desliga) |
+| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Força da puxada e da vibração no volante |
+| `[effect]` | `limit_truck_kmh`, `limit_trailer_kmh` | `60`, `70` | Limite de velocidade com pneu do caminhão ou só da carreta estourado |
+| `[effect]` | `sound`, `sound_volume`, `flap_volume` | `1`, `0.8`, `0.6` | Som do estouro e do pneu batendo (volume do plugin, de `0` a `1`; não acompanha o volume do jogo) |
+| `[effect]` | `visual` | `1` | Pneu rasgado na roda estourada |
+| `[tires]` | `capture` | `0` | Diagnóstico: grava os dados das rodas desenhadas num arquivo `tire_capture_*.txt` |
+| `[tires]` | `tint_test` | `0` | Diagnóstico: pinta os pneus trocados de magenta |
+| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | Precisam ficar em `1` para o plugin funcionar |
+
+Um INI criado por uma versão anterior não tem as chaves novas: valem os padrões (estouros e aviso ligados). Para mudar uma delas, acrescente a chave na seção.
 
 ## Como funciona
 
@@ -107,6 +169,14 @@ flowchart LR
 3. **De quem é a roda:** a cada desenho de pneu, o plugin lê a posição da roda em relação à câmera e reconhece o conjunto de rodas do caminhão e das carretas: pela distância entre elas, pela pose vinda da telemetria e, nos retrovisores, por pares de rodas. Rodas que não batem com os seus veículos são tráfego e ficam como estão.
 4. **Troca:** se a roda é sua, a textura daquele desenho é trocada pela versão do nível de desgaste atual.
 
+### Estouro
+
+1. **Sorteio:** a cada quadro, a distância percorrida (hodômetro da telemetria) e o desgaste de cada veículo dão a chance de estouro. O estado fica salvo em `TireWear\blowout_state.txt`.
+2. **Efeito:** o plugin registra um dispositivo de entrada pela **Input API** oficial do SDK. O jogo soma os valores dele aos do seu volante, pedais ou teclado (direção, acelerador, freio e freio da carreta). Nada é escrito na memória do jogo.
+3. **Som:** gerado por código (sem arquivos de áudio) e tocado pelo Windows. A batida do pneu acompanha a rotação da roda informada pela telemetria.
+4. **Pneu rasgado:** feito a partir da textura do nível de desgaste atual, numa thread separada, e desenhado só na roda estourada (a mesma separação jogador × tráfego do desgaste).
+5. **Aviso:** desenhado pelo plugin com Dear ImGui, imitando os avisos do jogo, com a fonte Rubik embutida na DLL. Um plugin não tem como mostrar os avisos do próprio jogo. O idioma vem do `config.cfg` do jogo.
+
 ## Limitações conhecidas
 
 - Uma roda isolada da carreta, vista pela janela da cabine, pode ficar com a aparência original.
@@ -114,6 +184,9 @@ flowchart LR
 - Visto de muito longe, a linha branca de alguns Michelin (XZE) ainda aparece fraca.
 - Em alguns modelos, uma linha clara fina no centro da banda some a partir de 14%.
 - Logo depois de carregar, o pneu pode ficar original por alguns frames, até as versões gastas ficarem prontas.
+- Estouro no **teclado**: o acelerador não é limitado (o jogo não deixa), só o freio a partir de 8 km/h acima do limite.
+- O pneu estourado não fica mais baixo nem muda a física do jogo: o efeito vem só da direção, do acelerador e dos freios.
+- O idioma do aviso é lido quando o jogo abre: se você trocar o idioma, reinicie o jogo.
 
 ## Problemas e feedback
 
@@ -143,13 +216,14 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 
 | Pasta | Conteúdo |
 |---|---|
-| `src/` | Plugin: telemetria (`plugin.cpp`), hooks D3D11/DXGI (`present_probe.cpp`, `tire_probe.cpp`), transformação de desgaste (`wear_transform.cpp`), separação jogador × tráfego (`player_tracker.cpp`) e painel opcional (`overlay.cpp`) |
+| `src/` | Plugin: telemetria e input (`plugin.cpp`), hooks D3D11/DXGI (`present_probe.cpp`, `tire_probe.cpp`), transformação de desgaste e pneu rasgado (`wear_transform.cpp`), separação jogador × tráfego (`player_tracker.cpp`), estouro (`blowout.cpp`), efeito no caminhão (`effect.cpp`), som (`tire_audio.cpp`), aviso (`notice.cpp`) e desenho na tela (`overlay.cpp`) |
 | `catalog/` | Por jogo (`ets2/`, `ats/`): hashes das texturas de pneu e retângulo da banda de cada uma (embutidos na DLL) |
 | `package/` | LEIA-ME do zip |
-| `tools/` | Ferramentas de desenvolvimento: `wearpreview` (prévias e benchmark da transformação), `trackertest` (testa a separação com capturas), `tirecat` (gera o catálogo a partir dos arquivos extraídos do jogo) |
-| `third_party/` | MinHook 1.3.4 (BSD-2) e Dear ImGui 1.92.9b (MIT) |
+| `tools/` | Ferramentas de desenvolvimento: `wearpreview` (prévias e benchmark da transformação, inclusive do pneu rasgado), `trackertest` (testa a separação com capturas), `tirecat` (gera o catálogo a partir dos arquivos extraídos do jogo), `blowoutsim` (simula estouros e efeito fora do jogo), `tiresound` (gera o som num WAV), `noticepreview` (prévia do aviso) |
+| `third_party/` | MinHook 1.3.4 (BSD-2), Dear ImGui 1.92.9b (MIT) e a fonte Rubik (SIL OFL 1.1) |
 
 ## Licenças e créditos
 
 - Este projeto: [MIT](LICENSE). O mesmo arquivo traz os avisos das duas bibliotecas embutidas na DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
+- Fonte do aviso: [Rubik](https://github.com/googlefonts/rubik), embutida na DLL, sob a [SIL Open Font License 1.1](third_party/rubik/OFL.txt).
 - Euro Truck Simulator 2, American Truck Simulator, Goodyear e Michelin são marcas dos seus donos. Este projeto não tem ligação com a SCS Software nem com os fabricantes de pneus, e não distribui arquivos do jogo.

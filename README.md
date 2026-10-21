@@ -8,6 +8,8 @@
 
 > **Alpha release.** It works on my setup but is still being tested by other people. Use it in single player, and back up your profile if you want to be extra safe.
 
+> **Tires can blow out.** From 60% wear, a tire may blow while you drive: the truck pulls to one side and is held to 60 km/h until you replace the tires. This is on by default. To turn it off, set `[blowout] enabled = 0` in the INI ([details](#tire-blowouts)).
+
 > **Tire mods are not supported yet.** Only the tires of the base game and of the official DLCs (Goodyear, Michelin) get the worn look. If you fit a tire from a mod, the plugin does not recognise it and its visual wear simply does not happen: that tire keeps its original look. Nothing breaks, and the other tires keep working.
 
 A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that makes the tires of **your** truck and **your** trailers look worn according to the game's **real wear**. The game already tracks the wear of every wheel (you can see it in the service menu), but the tire always looks brand new. With this plugin the tread gradually loses its pattern until it is almost bald.
@@ -23,6 +25,7 @@ A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that ma
 - **Wears only the tread**: the sidewall, its lettering and the rim stay untouched.
 - **Only on your vehicles**: traffic keeps its new tires, in the mirrors too.
 - **No game files are modified**: no `.scs` is changed. The worn textures are created in memory from the original ones while the game runs.
+- **Tire blowouts**: badly worn tires can blow, with a notice, sounds, a shredded tire and an effect on the steering ([details](#tire-blowouts)).
 
 ### How the wear looks
 
@@ -44,6 +47,52 @@ ATS has its own tires (American sizes and patterns); they get the same treatment
 
 ![Six ATS tire models at 0, 57 and 100%](docs/images/ats_modelos.png)
 
+## Tire blowouts
+
+The game has no tire blowouts, so the plugin adds them. From 60% wear, each vehicle (the truck and each trailer) has a chance per kilometre of blowing a tire. The chance grows with the wear:
+
+| Wear | Average distance until a blowout |
+|---|---|
+| up to 60% | never blows |
+| 70% | ~19,000 km |
+| 80% | ~2,400 km |
+| 90% | ~700 km |
+| 100% | ~300 km |
+
+### When a tire blows
+
+- **Notice** at the top of the screen, in the style of the game's own notices, saying which tire blew (vehicle, axle and side). It follows the game's language: Portuguese when the game is in Portuguese, English for every other language.
+
+  ![Blown tire notice in Portuguese and in English](docs/images/aviso_estouro.png)
+
+- **Sounds:** a bang, then the torn tire slapping the road in step with the wheel.
+- **Shredded tire** on the blown wheel only: the steel belts show through the tread and the sidewall gets a gash of random size. All of it is drawn on top of the wear the tire already had.
+
+  ![Blown front left tire in the game, on a tire that was already worn](docs/images/pneu_estourado_jogo.png)
+
+  *In the game: blown front left tire on a Scania, on top of 86% wear.*
+
+  ![New tread, blown at 0% and at 57% wear, and the sidewall gash](docs/images/pneu_estourado.png)
+
+  *Goodyear KMAX D: new tread, blown at 0% wear, blown at 57%, and the sidewall with the gash. Images from the project's preview tool.*
+
+- **Effect on the truck:**
+  - **Truck tire:** a jolt towards the blown side, then the truck keeps pulling that way, with a light shake in the steering. It also drags.
+  - **Trailer tire:** the truck only drags, with no pull on the steering.
+  - **Drags** means less throttle and, with a trailer attached, the trailer brake at 35%, which does **not** light the brake lamps. Only at the blowout is there a short brake tap, and the lamps flash.
+  - **Speed limit:** 60 km/h with a blown truck tire, and 70 km/h when only a trailer tire is blown. With an analog pedal, the throttle is gradually taken away near the limit. If you go 8 km/h over the limit (downhill, for example), the brake comes in and the lamps light up.
+
+### Repair and turning it off
+
+- **Repair:** replace the tires at a service station. The blowout ends when that vehicle's wear drops (by at least 5 points, or half the wear it had at the blowout, whichever is smaller). Until then, the blowout stays even if you quit and come back.
+- **Multiplayer:** tires do not blow in Convoy or TruckersMP.
+- **Turning it off:**
+  - `[blowout] enabled = 0` turns blowouts off;
+  - `[effect] enabled = 0` keeps blowouts (notice and shredded tire) but removes the effect on the truck and the sounds;
+  - **Ctrl+Shift+B** in the game stops the effect and the slapping sound for the rest of the session.
+
+The effect is added to your wheel and pedals through the official SCS SDK controls. No game memory is changed. On the **keyboard**, the game does not let the plugin take throttle away, so the speed limit only works through the brake, from 8 km/h over the limit.
+
 ## Compatibility
 
 | Item | Status |
@@ -55,9 +104,10 @@ ATS has its own tires (American sizes and patterns); they get the same treatment
 | Tires (ATS) | All 42 truck and trailer texture pairs of the base game, the **Goodyear** and **Michelin** tire DLCs and the Duty tire of the wheel DLC (`dlc_rims`) |
 | Modded tires | **Not supported yet**: no visual wear, the tire keeps its original look |
 | Modded trucks and trailers | Should work: telling yours from traffic uses the wheel positions, not the model |
-| TruckersMP | **Not tested** |
+| TruckersMP | **Not tested.** Blowouts turn themselves off in TruckersMP and in Convoy |
+| Controls (blowouts) | Tested on the **keyboard**. A wheel with force feedback is still being tested |
 | Other graphics mods | Tested alongside a lighting mod that also uses `dxgi.dll` / `dinput8.dll`, with no conflict |
-| Performance | No FPS loss in tests. Each tire texture gets 7 worn versions on a background thread: ~0.15 s for 512 px and ~0.7 s for 1024 px, only when it loads |
+| Performance | No FPS loss in tests. Each tire texture gets 7 worn versions on a background thread: ~0.15 s for 512 px and ~0.7 s for 1024 px, only when it loads. The shredded tire is made once per blowout, also on a background thread (~75 ms for 1024 px) |
 
 ## Installation
 
@@ -76,18 +126,30 @@ Wear shows up as the tires wear in your save; a new tire looks unchanged. To see
 
 ## Settings
 
-The file is `Documents\<game>\TireWear\ets2_tire_wear.ini` (one per game), created with the defaults below on the first run. Edit it with the game closed.
+The file is `Documents\<game>\TireWear\ets2_tire_wear.ini` (one per game), created with the defaults below on the first run. Every key has a comment explaining it. Edit it with the game closed.
 
-| Key | Default | Purpose |
-|---|---|---|
-| `wear_levels` | `1` | Turns the worn tires on (`0` = off) |
-| `separate` | `1` | Only your vehicles wear (`0` also wears traffic, by texture folder) |
-| `levels` | `8` | Number of wear levels |
-| `wear_override` | `-1` | Testing: `0.0` to `1.0` forces that wear on every tire; `-1` uses the telemetry |
-| `overlay` | `0` | `1` shows a small panel with the average wear of the truck and each trailer |
-| `capture` | `0` | Diagnosis: writes the data of the drawn wheels to a `tire_capture_*.txt` file |
-| `tint_test` | `0` | Diagnosis: paints swapped tires magenta |
-| `probe`, `hook`, `log` | `1` | Must stay at `1` for the plugin to work |
+| Section | Key | Default | Purpose |
+|---|---|---|---|
+| `[tires]` | `wear_levels` | `1` | Turns the worn tires on (`0` = off) |
+| `[tires]` | `separate` | `1` | Only your vehicles wear (`0` also wears traffic, by texture folder) |
+| `[tires]` | `levels` | `8` | Number of wear levels |
+| `[tires]` | `wear_override` | `-1` | Testing: `0.0` to `1.0` forces that wear on every tire; `-1` uses the telemetry |
+| `[present]` | `notice` | `1` | Notice at the top of the screen when a tire blows (`0` = off) |
+| `[present]` | `notice_s`, `notice_top`, `notice_scale` | `8`, `60`, `1` | How long the notice stays (seconds), its gap from the top (in 1/900 of the screen height) and its size |
+| `[present]` | `overlay` | `0` | Testing: `1` shows a panel in the corner with the average wear of the truck and each trailer, and the blown tires |
+| `[blowout]` | `enabled` | `1` | Turns blowouts on (`0` = off) |
+| `[blowout]` | `start_wear`, `km_at_100`, `curve` | `0.60`, `300`, `3` | The wear from which a tire can blow, the average distance until a blowout at 100%, and how fast the chance grows |
+| `[blowout]` | `test_after_s` | `0` | Testing: blows a tire after that many seconds of driving (this session only). Pick the tire with `test_unit` (`truck` or `trailer`) and `test_wheel` (`-1` = random) |
+| `[effect]` | `enabled` | `1` | The blowout's effect on the truck (pull, drag and speed limit) and its sounds (`0` = off) |
+| `[effect]` | `pull`, `wobble` | `0.12`, `0.015` | Strength of the pull and of the steering shake |
+| `[effect]` | `limit_truck_kmh`, `limit_trailer_kmh` | `60`, `70` | Speed limit with a blown truck tire, or with only a blown trailer tire |
+| `[effect]` | `sound`, `sound_volume`, `flap_volume` | `1`, `0.8`, `0.6` | Bang and slapping sounds (the plugin's own volume, `0` to `1`; not tied to the game's volume) |
+| `[effect]` | `visual` | `1` | Shredded tire on the blown wheel |
+| `[tires]` | `capture` | `0` | Diagnosis: writes the data of the drawn wheels to a `tire_capture_*.txt` file |
+| `[tires]` | `tint_test` | `0` | Diagnosis: paints swapped tires magenta |
+| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | Must stay at `1` for the plugin to work |
+
+An INI written by an older version lacks the new keys, so their defaults apply (blowouts and notice on). To change one, add the key to its section.
 
 ## How it works
 
@@ -109,6 +171,14 @@ flowchart LR
 3. **Whose wheel is it:** at every tire draw, the plugin reads the wheel's position relative to the camera and recognises the wheel set of your truck and trailers: from the distances between wheels, from the pose given by the telemetry and, in the mirrors, from wheel pairs. Wheels that do not match your vehicles are traffic and stay as they are.
 4. **Swap:** if the wheel is yours, that draw gets the texture of the current wear level.
 
+### Blowouts
+
+1. **The draw:** every frame, the distance driven (telemetry odometer) and each vehicle's wear give the chance of a blowout. The state is saved in `TireWear\blowout_state.txt`.
+2. **Effect:** the plugin registers an input device through the SDK's official **Input API**. The game adds its values to those of your wheel, pedals or keyboard (steering, throttle, brake and trailer brake). Nothing is written to the game's memory.
+3. **Sound:** generated in code (no audio files) and played through Windows. The slapping follows the wheel rotation reported by the telemetry.
+4. **Shredded tire:** made from the texture of the current wear level, on a background thread, and drawn on the blown wheel only (the same player vs traffic separation as the wear).
+5. **Notice:** drawn by the plugin with Dear ImGui, imitating the game's notices, with the Rubik font built into the DLL. A plugin cannot show the game's own notices. The language comes from the game's `config.cfg`.
+
 ## Known limitations
 
 - A single trailer wheel seen through the cab window may keep its original look.
@@ -116,6 +186,9 @@ flowchart LR
 - Seen from very far away, the white stripe of some Michelin models (XZE) is still faintly visible.
 - On some models, a thin light line in the middle of the tread disappears from 14% on.
 - Right after loading, a tire may look original for a few frames until its worn versions are ready.
+- Blowouts on the **keyboard**: the throttle is not limited (the game does not allow it), only the brake from 8 km/h over the limit.
+- A blown tire does not sit lower and does not change the game's physics: the effect comes only from the steering, throttle and brakes.
+- The notice's language is read when the game starts: if you change the language, restart the game.
 
 ## Issues and feedback
 
@@ -145,13 +218,14 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 
 | Folder | Contents |
 |---|---|
-| `src/` | The plugin: telemetry (`plugin.cpp`), D3D11/DXGI hooks (`present_probe.cpp`, `tire_probe.cpp`), wear transform (`wear_transform.cpp`), player vs traffic separation (`player_tracker.cpp`), optional panel (`overlay.cpp`) |
+| `src/` | The plugin: telemetry and input (`plugin.cpp`), D3D11/DXGI hooks (`present_probe.cpp`, `tire_probe.cpp`), wear transform and shredded tire (`wear_transform.cpp`), player vs traffic separation (`player_tracker.cpp`), blowouts (`blowout.cpp`), effect on the truck (`effect.cpp`), sound (`tire_audio.cpp`), notice (`notice.cpp`) and on-screen drawing (`overlay.cpp`) |
 | `catalog/` | Per game (`ets2/`, `ats/`): tire texture hashes and the tread rectangle of each (built into the DLL) |
 | `package/` | The zip's read-me |
-| `tools/` | Dev tools: `wearpreview` (previews and transform benchmark), `trackertest` (tests the separation on captures), `tirecat` (builds the catalogue from the game's extracted files) |
-| `third_party/` | MinHook 1.3.4 (BSD-2) and Dear ImGui 1.92.9b (MIT) |
+| `tools/` | Dev tools: `wearpreview` (previews and transform benchmark, shredded tire included), `trackertest` (tests the separation on captures), `tirecat` (builds the catalogue from the game's extracted files), `blowoutsim` (simulates blowouts and the effect outside the game), `tiresound` (renders the sounds to a WAV), `noticepreview` (notice preview) |
+| `third_party/` | MinHook 1.3.4 (BSD-2), Dear ImGui 1.92.9b (MIT) and the Rubik font (SIL OFL 1.1) |
 
 ## Licences and credits
 
 - This project: [MIT](LICENSE). The same file carries the notices of the two libraries built into the DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) and [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
+- Notice font: [Rubik](https://github.com/googlefonts/rubik), built into the DLL, under the [SIL Open Font License 1.1](third_party/rubik/OFL.txt).
 - Euro Truck Simulator 2, American Truck Simulator, Goodyear and Michelin are trademarks of their owners. This project is not affiliated with SCS Software or the tire makers, and ships no game files.
