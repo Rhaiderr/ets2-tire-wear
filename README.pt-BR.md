@@ -238,6 +238,14 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 | `tools/` | Ferramentas de desenvolvimento: `wearpreview` (prévias e benchmark da transformação, inclusive do pneu rasgado), `trackertest` (testa a separação com capturas), `tirecat` (gera o catálogo a partir dos arquivos extraídos do jogo), `blowoutsim` (simula estouros e efeito fora do jogo), `tiresound` (gera o som num WAV), `noticepreview` (prévia do aviso) |
 | `third_party/` | MinHook 1.3.4 (BSD-2), Dear ImGui 1.92.9b (MIT) e a fonte Rubik (SIL OFL 1.1) |
 
+## Apoie meu trabalho
+
+Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+
+**Pix:** `fe1a4c11-6bb5-4844-b687-1f9143512862`
+
 ## Licenças e créditos
 
 - Este projeto: [MIT](LICENSE). O mesmo arquivo traz os avisos das duas bibliotecas embutidas na DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
