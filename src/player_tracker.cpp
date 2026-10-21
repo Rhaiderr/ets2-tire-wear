@@ -31,6 +31,8 @@ constexpr int kMaxPasses = 8;
 constexpr int kForgetFrames = 30;        // a wheel not seen for this long is dropped
 constexpr int kPassIdleFrames = 300;
 constexpr int kMaxVariants = 8;          // layout symmetries tried per pose fit
+constexpr float kTurnMisses = 4.f;       // m, mean miss of the other units' wheels that condemns a unit's labelling ...
+constexpr float kTurnRatio = 0.25f;      // ... when turning it 180 degrees misses less than this share of that
 
 struct Obs {
     float p[3];
@@ -389,6 +391,83 @@ void InUnit(int a, int b, int k, double* out) {
     MulV(Transpose(ra), d, out);
 }
 
+// Fix (vega 140): a trailer whose axles are evenly spaced looks the same
+// turned 180 degrees about its vertical axis (front and rear, left and right
+// swapped), a proper rotation FixHandedness cannot see [verified: G923 test,
+// the last right tire of a 3-axle dry van drawn blown instead of the first
+// left]. The other units tell which way it faces: with the unit's fitted
+// pose and the telemetry placements, the draws claimed for another unit in
+// this camera land where they are only for the right orientation. Checked
+// every frame while such a unit is tracked; returns true when it turned it.
+bool FixFrontBack(Pass& pass, int u, const int* claimed) {
+    const Unit& unit = g_units[u];
+    const int n = unit.wheel_count;
+    if (n < kMinWheels || claimed[u] < kMinWheels || !unit.placed) return false;
+    // The wheel set's 180-degree partner: x mirrored, z mirrored about the middle.
+    float zmin = 1e9f, zmax = -1e9f;
+    for (int k = 0; k < n; ++k) zmin = std::fmin(zmin, unit.wheel[k][2]), zmax = std::fmax(zmax, unit.wheel[k][2]);
+    const float zmid = 0.5f * (zmin + zmax);
+    int turned[kMaxWheels];
+    for (int k = 0; k < n; ++k) {
+        turned[k] = -1;
+        const float* a = unit.wheel[k];
+        for (int j = 0; j < n && turned[k] < 0; ++j) {
+            const float* b = unit.wheel[j];
+            if (std::fabs(a[0] + b[0]) < 0.15f && std::fabs(a[1] - b[1]) < 0.15f &&
+                std::fabs((2.f * zmid - a[2]) - b[2]) < 0.15f)
+                turned[k] = j;
+        }
+        if (turned[k] < 0) return false;  // not symmetric that way: the search was not fooled
+    }
+    // The other units' draws in this camera, the references.
+    const int m = static_cast<int>(pass.obs.size());
+    int refs = 0;
+    for (int i = 0; i < m; ++i) {
+        const Obs& o = pass.obs[i];
+        if (o.unit >= 0 && o.unit != u && o.wheel >= 0 && g_units[o.unit].placed) ++refs;
+    }
+    if (!refs) return false;
+    // Mean miss of the references for the current and the turned labelling.
+    double miss[2] = {0, 0};
+    for (int v = 0; v < 2; ++v) {
+        double local[kMaxWheels][3], cam[kMaxWheels][3];
+        int count = 0;
+        for (int i = 0; i < m && count < kMaxWheels; ++i) {
+            const Obs& o = pass.obs[i];
+            if (o.unit != u || o.wheel < 0) continue;
+            const int k = v ? turned[o.wheel] : o.wheel;
+            for (int c = 0; c < 3; ++c) local[count][c] = unit.wheel[k][c], cam[count][c] = o.p[c];
+            ++count;
+        }
+        if (count < kMinWheels) return false;
+        const Pose pose = FitPose(local, cam, count);
+        if (pose.rms > kFitTol) return false;
+        for (int i = 0; i < m; ++i) {
+            const Obs& o = pass.obs[i];
+            if (o.unit < 0 || o.unit == u || o.wheel < 0 || !g_units[o.unit].placed) continue;
+            double in_u[3], p[3];
+            InUnit(u, o.unit, o.wheel, in_u);
+            MulV(pose.r, in_u, p);
+            float pc[3];
+            for (int c = 0; c < 3; ++c) pc[c] = static_cast<float>(p[c] + pose.t[c]);
+            miss[v] += Dist(pc, o.p);
+        }
+        miss[v] /= refs;
+    }
+    // Turn only on a clear verdict. The wrong way round misses by about twice
+    // the unit's length; the right way by placement and timing errors, up to
+    // ~1.7 m in a capture [verified: R4a captures, 15.7 m vs 0.06-1.7 m].
+    if (!(miss[0] > kTurnMisses && miss[1] < miss[0] * kTurnRatio)) return false;
+    for (int k = 0; k < kMaxWheels; ++k) pass.last_seen[u][k] = 0;
+    for (int i = 0; i < m; ++i) {
+        Obs& o = pass.obs[i];
+        if (o.unit != u || o.wheel < 0) continue;
+        o.wheel = turned[o.wheel];
+        SetTrack(pass, u, o.wheel, o.p);
+    }
+    return true;
+}
+
 // R4c: claims draws of units that have wheels without a draw, predicted from
 // the pose of another unit seen with >= kMinWheels wheels and the telemetry
 // placements (e.g. the truck's wheels in a mirror that shows the trailer).
@@ -730,6 +809,11 @@ void EndFrame(std::string* debug) {
                 }
             }
         }
+        for (int u = 0; u < kMaxUnits; ++u)
+            if (FixFrontBack(pass, u, claimed)) {
+                ++g_stats.turned;
+                if (debug) *debug += "    u" + std::to_string(u) + " turned 180 degrees (front/back fixed)\n";
+            }
         PredictFromPoses(pass, claimed, debug);
         PairRule(pass, claimed, debug);
         for (int u = 0; u < kMaxUnits; ++u)

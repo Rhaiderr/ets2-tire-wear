@@ -71,6 +71,7 @@ void EndFrame(std::string* debug = nullptr);
 struct Stats {
     long long claimed = 0, unclaimed = 0, searches = 0, found = 0, completed = 0, predicted = 0, paired = 0;
     long long flipped = 0;  // E4b: searches whose left/right had to be swapped
+    long long turned = 0;   // units turned 180 degrees (symmetric trailers, front/back swapped)
 };
 Stats GetStats();
 

@@ -241,10 +241,11 @@ int main(int argc, char** argv) {
     for (int frame = 1; frame <= 3; ++frame) {
         printf("-- frame %d\n", frame);
         for (const auto& d : draws) {
-            const int u = tracker::Classify(d.camera, d.p);
-            printf("  cam %d first %5d %-6s (%7.3f %7.3f %7.3f) -> unit %d\n",
+            int wheel = -1;
+            const int u = tracker::Classify(d.camera, d.p, nullptr, 0, nullptr, &wheel);
+            printf("  cam %d first %5d %-6s (%7.3f %7.3f %7.3f) -> unit %d wheel %d\n",
                    int(static_cast<const int*>(d.camera) - camera_ids), d.first,
-                   d.tex.find("trail55") != std::string::npos ? "trl55" : "trk70", d.p[0], d.p[1], d.p[2], u);
+                   d.tex.find("trail55") != std::string::npos ? "trl55" : "trk70", d.p[0], d.p[1], d.p[2], u, wheel);
         }
         if (frame == 3) {
             // Same truck layout, 6 m to the side, in camera 0: must stay -1.
@@ -258,8 +259,9 @@ int main(int argc, char** argv) {
         }
         tracker::EndFrame();
         const auto s = tracker::GetStats();
-        printf("  stats: claimed %lld unclaimed %lld searches %lld found %lld mirror-fixed %lld\n", s.claimed, s.unclaimed,
-               s.searches, s.found, s.flipped);
+        printf("  stats: claimed %lld unclaimed %lld searches %lld found %lld mirror-fixed %lld turned %lld\n", s.claimed,
+               s.unclaimed,
+               s.searches, s.found, s.flipped, s.turned);
     }
     return 0;
 }

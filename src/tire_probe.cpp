@@ -1435,10 +1435,11 @@ std::string Stats() {
         const auto ts = tracker::GetStats();
         snprintf(b, sizeof(b),
                  "\ntires: separation %s; per frame: %.1f player tire draws, %.1f traffic; reads %lld, invalid %lld, "
-                 "no pointer yet %lld; tracker searches %lld, found %lld (mirror fixed %lld), completed %lld, predicted %lld, "
+                 "no pointer yet %lld; tracker searches %lld, found %lld (mirror fixed %lld, turned %lld), completed %lld, "
+                 "predicted %lld, "
                  "paired %lld",
                  g_sep_failed.load() ? "OFF (failed)" : "on", per(player, g_stats_player0), per(traffic, g_stats_traffic0),
-                 g_sep_reads.load(), g_sep_invalid.load(), g_sep_nopointer.load(), ts.searches, ts.found, ts.flipped,
+                 g_sep_reads.load(), g_sep_invalid.load(), g_sep_nopointer.load(), ts.searches, ts.found, ts.flipped, ts.turned,
                  ts.completed, ts.predicted, ts.paired);
         out += b;
         g_stats_player0 = player;
