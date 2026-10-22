@@ -4,9 +4,9 @@
 
 [![Baixar ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Baixar%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
-[![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#apoie-meu-trabalho)
+[![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#-chave-pix)
 
-**[⬇ Baixar a versão mais recente (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [todas as versões](https://github.com/Rhaiderr/ets2-tire-wear/releases) · **Pix:** `fe1a4c11-6bb5-4844-b687-1f9143512862`
+**[⬇ Baixar a versão mais recente (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [todas as versões](https://github.com/Rhaiderr/ets2-tire-wear/releases)
 
 **Instalar:** copie os **dois arquivos** do zip, `ets2_tire_wear.dll` e `ets2_tire_wear.ini`, para `<pasta do jogo>\bin\win_x64\plugins\` (ETS2 ou ATS) e abra o jogo ([detalhes](#instalação)).
 
@@ -227,9 +227,16 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
-[![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#apoie-meu-trabalho)
 
-**Pix:** `fe1a4c11-6bb5-4844-b687-1f9143512862`
+<div align="center">
+
+### 🔑 Chave PIX
+
+</div>
+
+```
+fe1a4c11-6bb5-4844-b687-1f9143512862
+```
 
 ## Licenças e créditos
 

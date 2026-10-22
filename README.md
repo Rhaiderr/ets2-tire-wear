@@ -4,9 +4,9 @@
 
 [![Download ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Download%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
-[![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#support-my-work)
+[![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#-pix-key-brazil)
 
-**[⬇ Download the latest version (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [all versions](https://github.com/Rhaiderr/ets2-tire-wear/releases) · **Pix (Brazil):** `fe1a4c11-6bb5-4844-b687-1f9143512862`
+**[⬇ Download the latest version (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [all versions](https://github.com/Rhaiderr/ets2-tire-wear/releases)
 
 **Install:** copy **both files** from the zip, `ets2_tire_wear.dll` and `ets2_tire_wear.ini`, into `<game folder>\bin\win_x64\plugins\` (ETS2 or ATS) and start the game ([details](#installation)).
 
@@ -229,9 +229,16 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 I make free, open-source realism plugins for Euro Truck Simulator 2, built and maintained in my spare time. If you enjoy them and want to support new releases and updates, you can help:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
-[![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#support-my-work)
 
-**Pix (Brazil):** `fe1a4c11-6bb5-4844-b687-1f9143512862`
+<div align="center">
+
+### 🔑 Pix key (Brazil)
+
+</div>
+
+```
+fe1a4c11-6bb5-4844-b687-1f9143512862
+```
 
 ## Licences and credits
 
