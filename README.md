@@ -4,6 +4,7 @@
 
 [![Download ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Download%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+[![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#support-my-work)
 
 **[⬇ Download the latest version (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [all versions](https://github.com/Rhaiderr/ets2-tire-wear/releases) · **Pix (Brazil):** `fe1a4c11-6bb5-4844-b687-1f9143512862`
 
@@ -20,6 +21,15 @@ A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that ma
 ![The 8 wear levels of the default truck tire](docs/images/niveis.png)
 
 *The default ETS2 truck tire at the 8 wear levels. Images made with the project's preview tool, which runs exactly the plugin's code, under simulated lighting.*
+
+### In the game
+
+<p align="center">
+  <img src="docs/images/jogo_ets2_gasto.jpg" alt="Worn rear tires of a truck in ETS2" width="49%">
+  <img src="docs/images/jogo_ats_gasto.jpg" alt="Worn tires of a Western Star in ATS" width="49%">
+</p>
+
+*Screenshots from the game: worn rear tires of a truck in ETS2 (left) and of a Western Star in ATS (right).*
 
 ## What it does
 
@@ -168,35 +178,6 @@ The file is the `ets2_tire_wear.ini` in the `plugins` folder (it comes in the zi
 
 An INI written by an older version lacks the new keys, so their defaults apply (blowouts and notice on). To change one, add the key to its section.
 
-## How it works
-
-```mermaid
-flowchart LR
-    T[SCS telemetry<br/>wear per vehicle] --> N[Level 0-7]
-    U[Texture upload<br/>UpdateSubresource1] --> R{Tire texture?<br/>hash}
-    R -- yes --> W[Background thread:<br/>7 worn versions]
-    W --> C[GPU copies<br/>uploaded at Present]
-    D[Each tire draw] --> P{Player's wheel?<br/>wheel position}
-    P -- yes --> S[Swap texture<br/>for the right level]
-    P -- no --> O[Original tire]
-    N --> S
-    C --> S
-```
-
-1. **Recognition:** the plugin hooks (with [MinHook](https://github.com/TsudaKageyu/minhook)) the texture uploads to the GPU and compares each one against a catalogue of hashes of the game's tire textures (`catalog/ets2/` or `catalog/ats/tire_textures.csv`, picked by the game that loaded the plugin and built into the DLL; a file of the same name in the `TireWear` folder overrides it). No game files are shipped: the catalogue only holds hashes and names.
-2. **Worn textures:** each recognised tire gets 7 increasingly worn copies. Only the tread area, defined in `catalog/<game>/tire_regions.csv`, changes. Colour and relief (normal map) are recomputed pixel by pixel and re-compressed to BC3/BC5. This runs on a background thread so the game does not stutter.
-3. **Whose wheel is it:** at every tire draw, the plugin reads the wheel's position relative to the camera and recognises the wheel set of your truck and trailers: from the distances between wheels, from the pose given by the telemetry and, in the mirrors, from wheel pairs. Wheels that do not match your vehicles are traffic and stay as they are.
-4. **Swap:** if the wheel is yours, that draw gets the texture of the current wear level.
-
-### Blowouts
-
-1. **The draw:** every frame, the distance driven (telemetry odometer) and each vehicle's wear give the chance of a blowout. The state is saved in `TireWear\blowout_state.txt`.
-2. **Effect:** the plugin registers an input device through the SDK's official **Input API**. The game adds its values to those of your wheel, pedals or keyboard (steering, throttle, brake and trailer brake). Nothing is written to the game's memory.
-3. **Force on the wheel:** the game sets the wheel up through DirectInput before the plugin loads, so the plugin detours in memory (MinHook) the functions of Windows' `dinput8.dll` that read the controllers; no file is changed. At the game's next read it recognises the force feedback wheel and creates a constant force on it, updated right after each read.
-4. **Sound:** generated in code (no audio files) and played through Windows. The slapping follows the wheel rotation reported by the telemetry.
-5. **Shredded tire:** made from the texture of the current wear level, on a background thread, and drawn on the blown wheel only (the same player vs traffic separation as the wear).
-6. **Notice:** drawn by the plugin with Dear ImGui, imitating the game's notices, with the Rubik font built into the DLL. A plugin cannot show the game's own notices. The language comes from the game's `config.cfg`.
-
 ## Known limitations
 
 - A single trailer wheel seen through the cab window may keep its original look.
@@ -248,6 +229,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 I make free, open-source realism plugins for Euro Truck Simulator 2, built and maintained in my spare time. If you enjoy them and want to support new releases and updates, you can help:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+[![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#support-my-work)
 
 **Pix (Brazil):** `fe1a4c11-6bb5-4844-b687-1f9143512862`
 

@@ -4,6 +4,7 @@
 
 [![Baixar ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Baixar%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+[![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#apoie-meu-trabalho)
 
 **[⬇ Baixar a versão mais recente (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [todas as versões](https://github.com/Rhaiderr/ets2-tire-wear/releases) · **Pix:** `fe1a4c11-6bb5-4844-b687-1f9143512862`
 
@@ -20,6 +21,15 @@ Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra
 ![Os 8 níveis de desgaste do pneu padrão do caminhão](docs/images/niveis.png)
 
 *Pneu padrão do caminhão do ETS2 nos 8 níveis de desgaste. Imagens geradas pela ferramenta de prévia do projeto, que usa exatamente o mesmo código do plugin, com uma luz simulada.*
+
+### No jogo
+
+<p align="center">
+  <img src="docs/images/jogo_ets2_gasto.jpg" alt="Pneus traseiros gastos de um caminhão no ETS2" width="49%">
+  <img src="docs/images/jogo_ats_gasto.jpg" alt="Pneus gastos de um Western Star no ATS" width="49%">
+</p>
+
+*Prints do jogo: pneus traseiros gastos de um caminhão no ETS2 (esquerda) e de um Western Star no ATS (direita).*
 
 ## O que ele faz
 
@@ -166,35 +176,6 @@ O arquivo é o `ets2_tire_wear.ini` da pasta `plugins` (vem no zip, um por jogo)
 
 Um INI criado por uma versão anterior não tem as chaves novas: valem os padrões (estouros e aviso ligados). Para mudar uma delas, acrescente a chave na seção.
 
-## Como funciona
-
-```mermaid
-flowchart LR
-    T[Telemetria SCS<br/>desgaste por veículo] --> N[Nível 0-7]
-    U[Upload de textura<br/>UpdateSubresource1] --> R{É textura<br/>de pneu?<br/>hash}
-    R -- sim --> W[Thread separada:<br/>7 versões gastas]
-    W --> C[Cópias na GPU<br/>enviadas no Present]
-    D[Cada draw de pneu] --> P{Roda do jogador?<br/>posição da roda}
-    P -- sim --> S[Troca a textura<br/>pelo nível certo]
-    P -- não --> O[Pneu original]
-    N --> S
-    C --> S
-```
-
-1. **Reconhecimento:** o plugin intercepta (com [MinHook](https://github.com/TsudaKageyu/minhook)) o envio de texturas para a placa de vídeo e compara cada uma com um catálogo de hashes das texturas de pneu do jogo (`catalog/ets2/` ou `catalog/ats/tire_textures.csv`, escolhido conforme o jogo que carregou o plugin e embutido na DLL; um arquivo com o mesmo nome na pasta `TireWear` tem prioridade). Nenhum arquivo do jogo vai junto: o catálogo tem só hashes e nomes.
-2. **Texturas gastas:** para cada pneu reconhecido, gera 7 cópias com desgaste crescente. Só a área da banda de rodagem muda, definida em `catalog/<jogo>/tire_regions.csv`. A cor e o relevo (mapa normal) são recalculados pixel a pixel e recomprimidos em BC3/BC5. Isso roda numa thread separada para não travar o jogo.
-3. **De quem é a roda:** a cada desenho de pneu, o plugin lê a posição da roda em relação à câmera e reconhece o conjunto de rodas do caminhão e das carretas: pela distância entre elas, pela pose vinda da telemetria e, nos retrovisores, por pares de rodas. Rodas que não batem com os seus veículos são tráfego e ficam como estão.
-4. **Troca:** se a roda é sua, a textura daquele desenho é trocada pela versão do nível de desgaste atual.
-
-### Estouro
-
-1. **Sorteio:** a cada quadro, a distância percorrida (hodômetro da telemetria) e o desgaste de cada veículo dão a chance de estouro. O estado fica salvo em `TireWear\blowout_state.txt`.
-2. **Efeito:** o plugin registra um dispositivo de entrada pela **Input API** oficial do SDK. O jogo soma os valores dele aos do seu volante, pedais ou teclado (direção, acelerador, freio e freio da carreta). Nada é escrito na memória do jogo.
-3. **Força no volante:** o jogo configura o volante pelo DirectInput antes de o plugin carregar. Por isso o plugin intercepta em memória (MinHook) as funções do `dinput8.dll` do Windows que leem os controles; nenhum arquivo é alterado. Na próxima leitura do jogo, ele reconhece o volante com force feedback e cria nele uma força constante, atualizada logo depois de cada leitura.
-4. **Som:** gerado por código (sem arquivos de áudio) e tocado pelo Windows. A batida do pneu acompanha a rotação da roda informada pela telemetria.
-5. **Pneu rasgado:** feito a partir da textura do nível de desgaste atual, numa thread separada, e desenhado só na roda estourada (a mesma separação jogador × tráfego do desgaste).
-6. **Aviso:** desenhado pelo plugin com Dear ImGui, imitando os avisos do jogo, com a fonte Rubik embutida na DLL. Um plugin não tem como mostrar os avisos do próprio jogo. O idioma vem do `config.cfg` do jogo.
-
 ## Limitações conhecidas
 
 - Uma roda isolada da carreta, vista pela janela da cabine, pode ficar com a aparência original.
@@ -246,6 +227,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+[![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#apoie-meu-trabalho)
 
 **Pix:** `fe1a4c11-6bb5-4844-b687-1f9143512862`
 
