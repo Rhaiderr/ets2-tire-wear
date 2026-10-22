@@ -471,130 +471,50 @@ bool g_wd_stalled = false;
 Config LoadConfig(const std::wstring& ini) {
     if (GetFileAttributesW(ini.c_str()) == INVALID_FILE_ATTRIBUTES) {
         if (FILE* f = _wfopen(ini.c_str(), L"wb")) {
-            fputs("; ets2_tire_wear settings (created by the plugin: worn tires on, tests off)\r\n"
-                  "[present]\r\n"
-                  "; 1 = after the world loads, locate the system DXGI Present and log it\r\n"
-                  "probe = 1\r\n"
-                  "; 1 = also detour Present (count frames); needs probe = 1\r\n"
-                  "hook = 1\r\n"
-                  "; 1 = test HUD in the corner (wear per unit, blown tires); needs hook = 1\r\n"
-                  "overlay = 0\r\n"
-                  "; HUD font scale and top-left position in pixels\r\n"
-                  "overlay_scale = 1.6\r\n"
-                  "overlay_x = 20\r\n"
-                  "overlay_y = 20\r\n"
-                  "; 1 = notice at the top of the screen when a tire blows (game style); needs hook = 1\r\n"
-                  "notice = 1\r\n"
-                  "; seconds on screen, gap from the top (1/900 of the screen height) and size\r\n"
-                  "notice_s = 8\r\n"
-                  "notice_top = 60\r\n"
-                  "notice_scale = 1\r\n"
-                  "; seconds to wait after the first unpaused frame\r\n"
-                  "delay_s = 10\r\n"
-                  "[tires]\r\n"
-                  "; 1 = hook early (at plugin load) and recognise the tire textures; needs hook = 1\r\n"
-                  "log = 1\r\n"
-                  "; 1 = write a capture of tire draws, capture_delay_s after the first unpaused frame (diagnosis)\r\n"
-                  "capture = 0\r\n"
-                  "capture_delay_s = 30\r\n"
-                  "; second capture (0 = none), e.g. while driving\r\n"
-                  "capture2_delay_s = 0\r\n"
-                  "; consecutive frames per capture (1-60); more than 1 also logs what the separation saw\r\n"
-                  "capture_frames = 1\r\n"
-                  "; 1 = draw tires worn according to the telemetry wear; needs log = 1\r\n"
-                  "wear_levels = 1\r\n"
-                  "; number of wear levels (level 0 = the game's own texture)\r\n"
-                  "levels = 8\r\n"
-                  "; test only: 0.0 ... 1.0 forces this wear on every tire; -1 = use the telemetry\r\n"
-                  "wear_override = -1\r\n"
-                  "; test only: 1 = worn tire colour painted magenta\r\n"
-                  "tint_test = 0\r\n"
-                  "; 1 = only the player's truck and trailers wear (traffic keeps the game's tires)\r\n"
-                  "separate = 1\r\n"
+            fputs("; ETS2 & ATS Tire Wear - configuracao principal / main settings\r\n"
+                  "; Edite com o jogo fechado / edit with the game closed.\r\n"
+                  "; Outras chaves (som, aviso, limites, diagnostico): veja o README / other keys: see the README.\r\n"
+                  "; Uma chave que falta usa o valor normal / a missing key takes its normal value.\r\n"
+                  "\r\n"
                   "[blowout]\r\n"
-                  "; 1 = worn tires can blow out (single player only; off by itself in multiplayer)\r\n"
+                  "; 1 = pneus gastos (a partir de 60%) podem estourar; 0 = nunca\r\n"
+                  "; 1 = worn tires (from 60%) can blow out; 0 = never\r\n"
                   "enabled = 1\r\n"
-                  "; below this wear (0.0 ... 1.0) a tire never blows\r\n"
-                  "start_wear = 0.60\r\n"
-                  "; mean km until a blowout at 100% wear (the risk grows from start_wear to 100%)\r\n"
-                  "km_at_100 = 300\r\n"
-                  "; how steeply the risk grows between start_wear and 100% (1 = linear)\r\n"
-                  "curve = 3\r\n"
-                  "; test only: > 0 blows a tire after this many seconds of driving\r\n"
+                  "; TESTE: estoura um pneu depois de tantos segundos dirigindo (0 = desligado)\r\n"
+                  ";   o pneu de teste volta ao normal ao sair e entrar no jogo (o estouro real fica ate a oficina)\r\n"
+                  "; TEST: blows a tire after this many seconds of driving (0 = off)\r\n"
+                  ";   the test tire is back to normal when you leave and load the game again\r\n"
+                  ";   (a real blowout stays until the service station)\r\n"
                   "test_after_s = 0\r\n"
-                  "; test only: truck or trailer (the first trailer)\r\n"
+                  "; TESTE: truck = caminhao, trailer = carreta\r\n"
+                  "; TEST: truck or trailer\r\n"
                   "test_unit = truck\r\n"
-                  "; test only: telemetry wheel index to blow (-1 = random)\r\n"
+                  "; TESTE: qual roda: 0 = 1o eixo esquerda, 1 = 1o eixo direita, 2/3 = 2o eixo... ; -1 = sorteada\r\n"
+                  "; TEST: which wheel: 0 = first axle left, 1 = first axle right, 2/3 = second axle... ; -1 = random\r\n"
                   "test_wheel = -1\r\n"
+                  "\r\n"
+                  "[tires]\r\n"
+                  "; TESTE: forca o desgaste de todos os seus pneus, 0.0 a 1.0 (ex. 0.86); -1 = desgaste real do jogo\r\n"
+                  "; TEST: forces this wear on all your tires, 0.0 to 1.0 (e.g. 0.86); -1 = the game's real wear\r\n"
+                  "wear_override = -1\r\n"
+                  "\r\n"
                   "[effect]\r\n"
-                  "; 1 = a blown tire acts on the truck: a truck tire pulls to its side, any blown tire\r\n"
-                  "; drags (less throttle, no brake lights); stop it for the session with Ctrl+Shift+B\r\n"
+                  "; 1 = o estouro puxa, pesa e limita a velocidade (com som); 0 = sem efeito no caminhao\r\n"
+                  "; 1 = a blowout pulls, drags and limits the speed (with sounds); 0 = no effect on the truck\r\n"
                   "enabled = 1\r\n"
-                  "; steering pull of a tire on a steered axle (1 = full lock)\r\n"
-                  "pull = 0.12\r\n"
-                  "; other truck axles: this fraction of pull\r\n"
-                  "pull_rear = 0.4\r\n"
-                  "; right after the blowout the pull is kick times stronger for kick_s seconds\r\n"
-                  "kick = 2\r\n"
-                  "kick_s = 0.4\r\n"
-                  "; brake pedal tap at the blowout (the brake lights come on only then)\r\n"
-                  "kick_brake = 0.15\r\n"
-                  "kick_brake_s = 1\r\n"
-                  "; throttle taken away while a truck tire / only a trailer tire is blown (0 ... 1)\r\n"
-                  "throttle_cut = 0.2\r\n"
-                  "trailer_throttle_cut = 0.1\r\n"
-                  "; trailer brake while a trailer tire / a truck tire is blown (with a trailer attached);\r\n"
-                  "; 0.35 holds without lighting the brake lamps\r\n"
-                  "trailer_hold = 0.35\r\n"
-                  "truck_trailer_hold = 0.35\r\n"
-                  "; brake pedal all the time while a trailer tire is blown (lights on)\r\n"
-                  "trailer_pedal = 0\r\n"
-                  "; speed limit while a truck tire / only a trailer tire is blown\r\n"
-                  "limit_truck_kmh = 60\r\n"
-                  "limit_trailer_kmh = 70\r\n"
-                  "; governor: from this many km/h under the limit the throttle is taken away\r\n"
-                  "; (all of it at the limit; analog pedal only, not the keyboard)\r\n"
-                  "governor_kmh = 5\r\n"
-                  "; last resort: from this many km/h over the limit the brake (lights on)\r\n"
-                  "; grows to limit_brake over limit_band_kmh\r\n"
-                  "limit_brake_after_kmh = 8\r\n"
-                  "limit_band_kmh = 10\r\n"
-                  "limit_brake = 0.3\r\n"
-                  "; steering shake of a blown truck tire (0 = none)\r\n"
-                  "wobble = 0.015\r\n"
-                  "; 1 = a bang when a tire blows, then the torn tire slapping the road in step with\r\n"
-                  "; the wheel; volumes 0 ... 1 (not tied to the game's volume)\r\n"
-                  "sound = 1\r\n"
-                  "sound_volume = 0.8\r\n"
-                  "flap_volume = 0.6\r\n"
-                  "; 1 = the blown wheel is drawn shredded (steel belts showing, a gash in the sidewall);\r\n"
-                  "; needs [tires] wear_levels = 1 and separate = 1\r\n"
-                  "visual = 1\r\n"
-                  "; no drag below this speed; the pull reaches full strength at full_speed_kmh\r\n"
-                  "min_speed_kmh = 5\r\n"
-                  "full_speed_kmh = 40\r\n"
-                  "; 1 = pull to the other side (if the game's sign is the opposite)\r\n"
-                  "steer_invert = 0\r\n"
-                  "; 1 = on a force feedback wheel the pull is a force on the wheel itself (DirectInput)\r\n"
-                  "; instead of a steering offset; 0 = steering offset as on the keyboard\r\n"
-                  "ffb = 1\r\n"
-                  "; wheel force (0 ... 1 of its full force): steady pull, at the blowout, and the shake\r\n"
-                  "ffb_pull = 0.25\r\n"
-                  "ffb_kick = 0.6\r\n"
-                  "ffb_wobble = 0.08\r\n"
-                  "; 1 = the force pushes the wrong way on your wheel\r\n"
-                  "ffb_invert = 0\r\n"
-                  "; part of your wheel's name, if the plugin does not pick it by itself (see the game log,\r\n"
-                  "; lines \"ffb: ...\"); empty = the first wheel with force feedback the game reads\r\n"
-                  "ffb_device =\r\n",
+                  "; forca da puxada num volante com force feedback, 0 a 1 (direct drive: comece com 0.12)\r\n"
+                  "; pull force on a force feedback wheel, 0 to 1 (direct drive: start at 0.12)\r\n"
+                  "ffb_pull = 0.25\r\n",
                   f);
             fclose(f);
         }
     }
     const wchar_t* p = ini.c_str();
     Config c;
-    c.probe = GetPrivateProfileIntW(L"present", L"probe", 0, p) == 1;
-    c.hook = c.probe && GetPrivateProfileIntW(L"present", L"hook", 0, p) == 1;
+    // A missing key takes its normal-use value, so a short INI (or one from
+    // an older version) runs the plugin as released.
+    c.probe = GetPrivateProfileIntW(L"present", L"probe", 1, p) == 1;
+    c.hook = c.probe && GetPrivateProfileIntW(L"present", L"hook", 1, p) == 1;
     c.overlay = c.hook && GetPrivateProfileIntW(L"present", L"overlay", 0, p) == 1;
     c.delay_sec = static_cast<int>(GetPrivateProfileIntW(L"present", L"delay_s", 10, p));
     wchar_t buf[32] = {};
@@ -614,17 +534,17 @@ Config LoadConfig(const std::wstring& ini) {
     GetPrivateProfileStringW(L"present", L"notice_scale", L"1", buf, 32, p);
     c.notice_scale = wcstof(buf, nullptr);
     if (!(c.notice_scale >= 0.5f && c.notice_scale <= 3.f)) c.notice_scale = 1.f;
-    c.tires_log = c.hook && GetPrivateProfileIntW(L"tires", L"log", 0, p) == 1;
+    c.tires_log = c.hook && GetPrivateProfileIntW(L"tires", L"log", 1, p) == 1;
     c.tires_capture = c.tires_log && GetPrivateProfileIntW(L"tires", L"capture", 0, p) == 1;
     c.capture_delay_sec = static_cast<int>(GetPrivateProfileIntW(L"tires", L"capture_delay_s", 30, p));
     c.capture2_delay_sec = static_cast<int>(GetPrivateProfileIntW(L"tires", L"capture2_delay_s", 0, p));
     c.capture_frames = static_cast<int>(GetPrivateProfileIntW(L"tires", L"capture_frames", 1, p));
-    c.wear_levels = c.tires_log && GetPrivateProfileIntW(L"tires", L"wear_levels", 0, p) == 1;
+    c.wear_levels = c.tires_log && GetPrivateProfileIntW(L"tires", L"wear_levels", 1, p) == 1;
     c.levels = static_cast<int>(GetPrivateProfileIntW(L"tires", L"levels", 8, p));
     GetPrivateProfileStringW(L"tires", L"wear_override", L"-1", buf, 32, p);
     c.wear_override = wcstof(buf, nullptr);
     c.tint_test = c.wear_levels && GetPrivateProfileIntW(L"tires", L"tint_test", 0, p) == 1;
-    c.separate = c.wear_levels && GetPrivateProfileIntW(L"tires", L"separate", 0, p) == 1;
+    c.separate = c.wear_levels && GetPrivateProfileIntW(L"tires", L"separate", 1, p) == 1;
     return c;
 }
 

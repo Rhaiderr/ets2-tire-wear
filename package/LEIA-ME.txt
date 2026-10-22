@@ -37,6 +37,17 @@ plugins\ets2_tire_wear.ini (edit with the game closed / edite com o jogo fechado
 Turn blowouts off / Desligar os estouros: [blowout] enabled = 0
 Logs: Documents\<game / jogo>\TireWear\
 
+TEST INIs / INIs DE TESTE (folder / pasta "testes")
+Copy one over plugins\ets2_tire_wear.ini (same name) and start the game.
+Copie um por cima de plugins\ets2_tire_wear.ini (mesmo nome) e abra o jogo.
+  1-uso-normal.ini         normal use / uso normal (back to normal / volta ao normal)
+  2-ver-desgaste.ini       all your tires at 86% / todos os seus pneus a 86%
+  3-estouro-caminhao.ini   truck front left tire blows 20 s after driving off /
+                           estoura o pneu dianteiro esquerdo do caminhao 20 s depois de andar
+  4-estouro-carreta.ini    trailer first-axle left tire blows 20 s after driving off /
+                           estoura o pneu do 1o eixo, esquerda, da carreta 20 s depois de andar
+A test blowout lasts for the session only / O estouro de teste vale so na sessao.
+
 UNINSTALL / DESINSTALAR
 Delete / Apague plugins\ets2_tire_wear.dll, plugins\ets2_tire_wear.ini and / e
 Documents\<game / jogo>\TireWear.

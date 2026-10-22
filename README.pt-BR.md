@@ -148,7 +148,36 @@ O desgaste aparece conforme o pneu desgasta no seu save. Num pneu novo não muda
 
 ## Configuração
 
-O arquivo é o `ets2_tire_wear.ini` da pasta `plugins` (vem no zip, um por jogo). Sem ele, o plugin cria e usa `Documentos\<jogo>\TireWear\ets2_tire_wear.ini`, como nas versões anteriores; o `game.log.txt` mostra qual está em uso (linha `settings:`). Cada chave tem um comentário explicando o que faz. Edite com o jogo fechado.
+O arquivo é o `ets2_tire_wear.ini` da pasta `plugins` (vem no zip, um por jogo). Ele traz só as chaves principais, cada uma com um comentário em português e inglês. Edite com o jogo fechado.
+
+| Seção | Chave | Padrão | Para que serve |
+|---|---|---|---|
+| `[blowout]` | `enabled` | `1` | Pneus gastos (a partir de 60%) podem estourar; `0` = nunca |
+| `[blowout]` | `test_after_s` | `0` | **Teste:** estoura um pneu depois de tantos segundos dirigindo (vale só naquela sessão); `0` = desligado |
+| `[blowout]` | `test_unit` | `truck` | **Teste:** `truck` = caminhão, `trailer` = carreta |
+| `[blowout]` | `test_wheel` | `-1` | **Teste:** qual roda: `0` = 1º eixo esquerda, `1` = 1º eixo direita, `2`/`3` = 2º eixo…; `-1` = sorteada |
+| `[tires]` | `wear_override` | `-1` | **Teste:** força o desgaste de todos os seus pneus, `0.0` a `1.0` (ex. `0.86`); `-1` = desgaste real do jogo |
+| `[effect]` | `enabled` | `1` | O estouro puxa, pesa e limita a velocidade (com som); `0` = sem efeito no caminhão |
+| `[effect]` | `ffb_pull` | `0.25` | Força da puxada num volante com force feedback, `0` a `1` (direct drive: comece com `0.12`) |
+
+Sem esse arquivo na pasta `plugins`, o plugin cria e usa `Documentos\<jogo>\TireWear\ets2_tire_wear.ini`, como nas versões anteriores. O `game.log.txt` mostra qual está em uso, na linha `settings:`.
+
+### INIs prontos para testar
+
+A pasta `testes` do zip traz quatro INIs prontos. Copie o que quiser por cima do `ets2_tire_wear.ini` da pasta `plugins` (com o mesmo nome) e abra o jogo. Para voltar ao normal, copie o `1-uso-normal.ini` do mesmo jeito.
+
+| Arquivo | O que faz |
+|---|---|
+| `1-uso-normal.ini` | Uso normal (igual ao padrão) |
+| `2-ver-desgaste.ini` | Todos os seus pneus a 86% de desgaste, para ver o efeito na hora |
+| `3-estouro-caminhao.ini` | Estoura o pneu dianteiro esquerdo do caminhão 20 s depois de você começar a andar |
+| `4-estouro-carreta.ini` | Estoura o pneu do 1º eixo, lado esquerdo, da carreta 20 s depois de você começar a andar (com carreta engatada) |
+
+O estouro de teste vale só na sessão: para repetir, volte ao menu e carregue o save de novo.
+
+### Todas as chaves
+
+Qualquer outra chave pode ser acrescentada na seção certa; uma chave que falta usa o valor normal.
 
 | Seção | Chave | Padrão | Para que serve |
 |---|---|---|---|
@@ -172,9 +201,7 @@ O arquivo é o `ets2_tire_wear.ini` da pasta `plugins` (vem no zip, um por jogo)
 | `[effect]` | `visual` | `1` | Pneu rasgado na roda estourada |
 | `[tires]` | `capture` | `0` | Diagnóstico: grava os dados das rodas desenhadas num arquivo `tire_capture_*.txt` |
 | `[tires]` | `tint_test` | `0` | Diagnóstico: pinta os pneus trocados de magenta |
-| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | Precisam ficar em `1` para o plugin funcionar |
-
-Um INI criado por uma versão anterior não tem as chaves novas: valem os padrões (estouros e aviso ligados). Para mudar uma delas, acrescente a chave na seção.
+| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | `0` desliga partes do plugin: deixe como está |
 
 ## Limitações conhecidas
 
@@ -209,7 +236,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
    ```
 3. A DLL fica em `build\out\ets2_tire_wear.dll`. Para montar o zip de release:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.0-beta
+   powershell -File tools\package.ps1 -Version 0.3.1-beta
    ```
 
 ### Estrutura

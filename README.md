@@ -150,7 +150,36 @@ Wear shows up as the tires wear in your save; a new tire looks unchanged. To see
 
 ## Settings
 
-The file is the `ets2_tire_wear.ini` in the `plugins` folder (it comes in the zip, one per game). Without it, the plugin creates and uses `Documents\<game>\TireWear\ets2_tire_wear.ini`, as in earlier versions; `game.log.txt` tells which one is in use (the `settings:` line). Every key has a comment explaining it. Edit it with the game closed.
+The file is the `ets2_tire_wear.ini` in the `plugins` folder (it comes in the zip, one per game). It only holds the main keys, each with a comment in Portuguese and English. Edit it with the game closed.
+
+| Section | Key | Default | Purpose |
+|---|---|---|---|
+| `[blowout]` | `enabled` | `1` | Worn tires (from 60%) can blow out; `0` = never |
+| `[blowout]` | `test_after_s` | `0` | **Test:** blows a tire after that many seconds of driving (this session only); `0` = off |
+| `[blowout]` | `test_unit` | `truck` | **Test:** `truck` or `trailer` |
+| `[blowout]` | `test_wheel` | `-1` | **Test:** which wheel: `0` = first axle left, `1` = first axle right, `2`/`3` = second axle…; `-1` = random |
+| `[tires]` | `wear_override` | `-1` | **Test:** forces this wear on all your tires, `0.0` to `1.0` (e.g. `0.86`); `-1` = the game's real wear |
+| `[effect]` | `enabled` | `1` | A blowout pulls, drags and limits the speed (with sounds); `0` = no effect on the truck |
+| `[effect]` | `ffb_pull` | `0.25` | Pull force on a force feedback wheel, `0` to `1` (direct drive: start at `0.12`) |
+
+Without that file in `plugins`, the plugin creates and uses `Documents\<game>\TireWear\ets2_tire_wear.ini`, as in earlier versions. `game.log.txt` tells which one is in use, on the `settings:` line.
+
+### Ready-made test INIs
+
+The zip's `testes` folder holds four ready-made INIs. Copy the one you want over the `ets2_tire_wear.ini` in `plugins` (same name) and start the game. To go back to normal, copy `1-uso-normal.ini` the same way.
+
+| File | What it does |
+|---|---|
+| `1-uso-normal.ini` | Normal use (same as the default) |
+| `2-ver-desgaste.ini` | All your tires at 86% wear, to see the effect right away |
+| `3-estouro-caminhao.ini` | Blows the truck's front left tire 20 s after you drive off |
+| `4-estouro-carreta.ini` | Blows the trailer's first-axle left tire 20 s after you drive off (trailer attached) |
+
+A test blowout lasts for the session only: to repeat it, go back to the menu and load the save again.
+
+### All keys
+
+Any other key can be added to its section; a missing key takes its normal value.
 
 | Section | Key | Default | Purpose |
 |---|---|---|---|
@@ -174,9 +203,7 @@ The file is the `ets2_tire_wear.ini` in the `plugins` folder (it comes in the zi
 | `[effect]` | `visual` | `1` | Shredded tire on the blown wheel |
 | `[tires]` | `capture` | `0` | Diagnosis: writes the data of the drawn wheels to a `tire_capture_*.txt` file |
 | `[tires]` | `tint_test` | `0` | Diagnosis: paints swapped tires magenta |
-| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | Must stay at `1` for the plugin to work |
-
-An INI written by an older version lacks the new keys, so their defaults apply (blowouts and notice on). To change one, add the key to its section.
+| `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | `0` turns parts of the plugin off: leave them alone |
 
 ## Known limitations
 
@@ -211,7 +238,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
    ```
 3. The DLL ends up in `build\out\ets2_tire_wear.dll`. To build the release zip:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.0-beta
+   powershell -File tools\package.ps1 -Version 0.3.1-beta
    ```
 
 ### Layout

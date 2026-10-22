@@ -451,7 +451,7 @@ std::string WheelText(const blowout::WheelPos& w, bool pt) {
 }
 
 // T4: the notice for a tire that just blew, in the game's language (UTF-8).
-void ShowBlowoutNotice(int unit, const blowout::WheelPos& w, bool test) {
+void ShowBlowoutNotice(int unit, const blowout::WheelPos& w) {
     const bool pt = g.lang_pt;
     std::string who = unit == 0 ? (pt ? "Caminh\xC3\xA3o" : "Truck") : (pt ? "Carreta" : "Trailer");
     if (unit > 1) who += " " + std::to_string(unit);
@@ -461,8 +461,7 @@ void ShowBlowoutNotice(int unit, const blowout::WheelPos& w, bool test) {
                  pt ? (w.left ? "esquerdo" : "direito") : (w.left ? "left" : "right"));
     else
         snprintf(where, sizeof(where), "%s.", who.c_str());
-    std::string title = pt ? "Pneu estourado!" : "Tire blown!";
-    if (test) title += pt ? " (teste)" : " (test)";
+    const std::string title = pt ? "Pneu estourado!" : "Tire blown!";
     notice::Show(title, std::string(where) + "\n" +
                             (pt ? "Troque o pneu na oficina." : "Replace the tire at a service station."));
 }
@@ -513,7 +512,7 @@ void BlowoutStep(const float* wear, const tracker::Unit* units) {
             changed = true;
             (u == 0 ? g.truck_blew : g.trailer_blew) = true;
             if (g.sound && !g.paused && g_effect.params().enabled) tire_audio::Bang(g.sound_volume);
-            if (!mp) ShowBlowoutNotice(u, where, test);
+            if (!mp) ShowBlowoutNotice(u, where);
             char msg[256];
             snprintf(msg, sizeof(msg), "%s tire blew: wheel %d (%s) at %.1f%% wear, odometer %.1f km%s [%s]",
                      UnitName(u, false).c_str(), b.wheel, WheelText(where, false).c_str(), wear[u] * 100.f,
