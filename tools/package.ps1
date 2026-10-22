@@ -1,5 +1,6 @@
 # Builds the release zip: the DLL (catalog, font and sounds built in), the
-# settings file to put next to it, the read-me and the licences.
+# settings file to put next to it, the read-me and LICENSE (MIT plus the
+# notices of what is built in, the font's OFL included).
 # Usage: tools\package.ps1 -Version 0.3.0-beta
 # Writes dist\ets2-tire-wear.zip (a fixed name, so the README's
 # "releases/latest/download/ets2-tire-wear.zip" link always works) and a copy
@@ -16,7 +17,6 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $dll, "$Project\package\LEIA-ME.txt" $stage
 Copy-Item "$Project\LICENSE" "$stage\LICENSE.txt"
-Copy-Item "$Project\third_party\rubik\OFL.txt" "$stage\OFL-Rubik.txt"
 
 # The INI is the very text the plugin writes when it has none (the string in
 # present_probe.cpp's LoadConfig), so the two never drift apart.

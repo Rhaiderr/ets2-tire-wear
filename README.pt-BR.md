@@ -241,5 +241,5 @@ fe1a4c11-6bb5-4844-b687-1f9143512862
 ## Licenças e créditos
 
 - Este projeto: [MIT](LICENSE). O mesmo arquivo traz os avisos das duas bibliotecas embutidas na DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
-- Fonte do aviso: [Rubik](https://github.com/googlefonts/rubik), embutida na DLL, sob a [SIL Open Font License 1.1](third_party/rubik/OFL.txt).
+- Fonte do aviso: [Rubik](https://github.com/googlefonts/rubik), embutida na DLL, sob a SIL Open Font License 1.1 (texto completo no fim do [LICENSE](LICENSE)).
 - Euro Truck Simulator 2, American Truck Simulator, Goodyear e Michelin são marcas dos seus donos. Este projeto não tem ligação com a SCS Software nem com os fabricantes de pneus, e não distribui arquivos do jogo.
