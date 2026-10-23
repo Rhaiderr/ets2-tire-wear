@@ -2,6 +2,10 @@
 
 [English](README.md) | **Português (Brasil)**
 
+> Plugin de realismo (mod) para **Euro Truck Simulator 2** e **American Truck Simulator** (ETS2 / ATS): pneus gastos (desgaste de pneu), estouro de pneu (pneu furado) e puxada no volante com force feedback. Feito sobre o SCS Telemetry SDK.
+
+<!-- TODO(GIF): colocar aqui o GIF do estouro depois de gravado, ex.: ![Um pneu estourando no ETS2](docs/images/blowout.gif) -->
+
 [![Baixar ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Baixar%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 [![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#-chave-pix)
@@ -215,6 +219,10 @@ Qualquer outra chave pode ser acrescentada na seção certa; uma chave que falta
 - O pneu estourado não fica mais baixo nem muda a física do jogo: o efeito vem só da direção, do acelerador e dos freios.
 - O idioma do aviso é lido quando o jogo abre: se você trocar o idioma, reinicie o jogo.
 
+## Ajude a testar seu volante
+
+O estouro como força no volante foi testado **só num Logitech G923**. Se você tem outro volante (Logitech, Thrustmaster, Fanatec, Moza…), seu relato é a coisa mais útil que você pode mandar: comente na issue fixada [Wheel compatibility reports](https://github.com/Rhaiderr/ets2-tire-wear/issues/1) com o modelo do volante, o jogo e as linhas `ffb:` do seu `game.log.txt`.
+
 ## Problemas e feedback
 
 Abra uma [issue](../../issues) com:
@@ -251,7 +259,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 
 ## Apoie meu trabalho
 
-Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
+Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2 e American Truck Simulator, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 
