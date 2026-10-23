@@ -2,6 +2,10 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
+> Realism plugin (mod) for **Euro Truck Simulator 2** and **American Truck Simulator** (ETS2 / ATS): worn tires (tyre wear), tire blowouts (flat tire, puncture) and a force feedback pull on the wheel. Built on the SCS Telemetry SDK.
+
+<!-- TODO(GIF): put the blowout GIF here once recorded, e.g. ![A tire blowing out in ETS2](docs/images/blowout.gif) -->
+
 [![Download ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Download%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 [![PIX](https://img.shields.io/badge/PIX-Support%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#-pix-key-brazil)
@@ -217,6 +221,10 @@ Any other key can be added to its section; a missing key takes its normal value.
 - A blown tire does not sit lower and does not change the game's physics: the effect comes only from the steering, throttle and brakes.
 - The notice's language is read when the game starts: if you change the language, restart the game.
 
+## Help test your wheel
+
+Blowouts as a force on the wheel were tested on a **Logitech G923 only**. If you have another wheel (Logitech, Thrustmaster, Fanatec, Moza…), your report is the most useful thing you can send: add a comment to the pinned issue [Wheel compatibility reports](https://github.com/Rhaiderr/ets2-tire-wear/issues/1) with your wheel model, the game, and the `ffb:` lines from your `game.log.txt`.
+
 ## Issues and feedback
 
 Open an [issue](../../issues) with:
@@ -253,7 +261,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 
 ## Support my work
 
-I make free, open-source realism plugins for Euro Truck Simulator 2, built and maintained in my spare time. If you enjoy them and want to support new releases and updates, you can help:
+I make free, open-source realism plugins for Euro Truck Simulator 2 and American Truck Simulator, built and maintained in my spare time. If you enjoy them and want to support new releases and updates, you can help:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 
@@ -269,6 +277,6 @@ fe1a4c11-6bb5-4844-b687-1f9143512862
 
 ## Licences and credits
 
-- This project: [MIT](LICENSE). The same file carries the notices of the two libraries built into the DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) and [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
-- Notice font: [Rubik](https://github.com/googlefonts/rubik), built into the DLL, under the SIL Open Font License 1.1 (full text at the end of [LICENSE](LICENSE)).
+- This project: [MIT](LICENSE). The notices of the two libraries built into the DLL are in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt): [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) and [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
+- Notice font: [Rubik](https://github.com/googlefonts/rubik), built into the DLL, under the SIL Open Font License 1.1 (full text at the end of [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)).
 - Euro Truck Simulator 2, American Truck Simulator, Goodyear and Michelin are trademarks of their owners. This project is not affiliated with SCS Software or the tire makers, and ships no game files.
