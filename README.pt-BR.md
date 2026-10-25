@@ -2,6 +2,10 @@
 
 [English](README.md) | **Português (Brasil)**
 
+> Plugin de realismo (mod) para **Euro Truck Simulator 2** e **American Truck Simulator** (ETS2 / ATS): pneus gastos (desgaste de pneu), estouro de pneu (pneu furado) e puxada no volante com force feedback. Feito sobre o SCS Telemetry SDK.
+
+<!-- TODO(GIF): colocar aqui o GIF do estouro depois de gravado, ex.: ![Um pneu estourando no ETS2](docs/images/blowout.gif) -->
+
 [![Baixar ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Baixar%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 [![PIX](https://img.shields.io/badge/PIX-Apoiar%20via%20Pix-32BCAD?style=for-the-badge&logo=pix&logoColor=white)](#-chave-pix)
@@ -215,6 +219,10 @@ Qualquer outra chave pode ser acrescentada na seção certa; uma chave que falta
 - O pneu estourado não fica mais baixo nem muda a física do jogo: o efeito vem só da direção, do acelerador e dos freios.
 - O idioma do aviso é lido quando o jogo abre: se você trocar o idioma, reinicie o jogo.
 
+## Ajude a testar seu volante
+
+O estouro como força no volante foi testado **só num Logitech G923**. Se você tem outro volante (Logitech, Thrustmaster, Fanatec, Moza…), seu relato é a coisa mais útil que você pode mandar: comente na issue fixada [Wheel compatibility reports](https://github.com/Rhaiderr/ets2-tire-wear/issues/1) com o modelo do volante, o jogo e as linhas `ffb:` do seu `game.log.txt`.
+
 ## Problemas e feedback
 
 Abra uma [issue](../../issues) com:
@@ -236,7 +244,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
    ```
 3. A DLL fica em `build\out\ets2_tire_wear.dll`. Para montar o zip de release:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.1-beta
+   powershell -File tools\package.ps1 -Version 0.3.2-beta
    ```
 
 ### Estrutura
@@ -251,7 +259,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 
 ## Apoie meu trabalho
 
-Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
+Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2 e American Truck Simulator, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
 
@@ -267,6 +275,6 @@ fe1a4c11-6bb5-4844-b687-1f9143512862
 
 ## Licenças e créditos
 
-- Este projeto: [MIT](LICENSE). O mesmo arquivo traz os avisos das duas bibliotecas embutidas na DLL: [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
-- Fonte do aviso: [Rubik](https://github.com/googlefonts/rubik), embutida na DLL, sob a SIL Open Font License 1.1 (texto completo no fim do [LICENSE](LICENSE)).
+- Este projeto: [MIT](LICENSE). Os avisos das duas bibliotecas embutidas na DLL estão em [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt): [MinHook](https://github.com/TsudaKageyu/minhook) (BSD 2-Clause) e [Dear ImGui](https://github.com/ocornut/imgui) (MIT).
+- Fonte do aviso: [Rubik](https://github.com/googlefonts/rubik), embutida na DLL, sob a SIL Open Font License 1.1 (texto completo no fim do [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)).
 - Euro Truck Simulator 2, American Truck Simulator, Goodyear e Michelin são marcas dos seus donos. Este projeto não tem ligação com a SCS Software nem com os fabricantes de pneus, e não distribui arquivos do jogo.

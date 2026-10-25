@@ -1,0 +1,55 @@
+name: Wheel compatibility report
+description: Tell us how the blowout force feedback works on your wheel
+title: "Wheel report: <wheel model>"
+labels: ["wheel-report"]
+body:
+  - type: input
+    id: wheel
+    attributes:
+      label: Wheel and base model
+      placeholder: "Logitech G923, Thrustmaster T300RS, Fanatec CSL DD…"
+    validations:
+      required: true
+  - type: input
+    id: software
+    attributes:
+      label: Wheel software and version
+      placeholder: "G HUB 2024.x, Fanalab, Moza Pit House…"
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options: [ETS2, ATS, Both]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Game version and plugin version
+      placeholder: "ETS2 1.61, plugin 0.3.1-beta"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - The pull is felt on the wheel
+        - No force on the wheel
+        - Force pushes the wrong way
+        - The plugin picked another device
+    validations:
+      required: true
+  - type: textarea
+    id: ffb
+    attributes:
+      label: "`ffb:` lines from game.log.txt"
+      description: "Paste only the lines that start with `ffb:`. Check them for your Windows user name first."
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings changed (optional)
+      description: "ffb_pull, ffb_invert, ffb_device…"

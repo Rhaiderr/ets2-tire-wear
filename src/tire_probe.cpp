@@ -9,11 +9,13 @@
 #include "tire_probe.h"
 
 #include "player_tracker.h"
+#include "ptr_map.h"
 #include "wear_transform.h"
 
 #include <windows.h>
 #include <d3d11_1.h>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstdio>
@@ -60,6 +62,23 @@ struct CatalogEntry {
 };
 std::vector<CatalogEntry> g_catalog;                         // id = index + 1
 std::unordered_map<uint64_t, std::pair<int, int>> g_hashes;  // hash -> (id, mip)
+// (width, format family) of the catalog's textures: only these are worth
+// hashing. Every BC square texture was a candidate before, ~57 hashes a
+// second of streamed terrain and buildings (vega 161).
+std::vector<std::pair<uint32_t, uint32_t>> g_shapes;
+
+// The same block layout under its typeless / UNORM / sRGB (or SNORM) names.
+uint32_t FormatFamily(uint32_t f) {
+    switch (f) {
+        case DXGI_FORMAT_BC1_TYPELESS: case DXGI_FORMAT_BC1_UNORM: case DXGI_FORMAT_BC1_UNORM_SRGB: return DXGI_FORMAT_BC1_UNORM;
+        case DXGI_FORMAT_BC2_TYPELESS: case DXGI_FORMAT_BC2_UNORM: case DXGI_FORMAT_BC2_UNORM_SRGB: return DXGI_FORMAT_BC2_UNORM;
+        case DXGI_FORMAT_BC3_TYPELESS: case DXGI_FORMAT_BC3_UNORM: case DXGI_FORMAT_BC3_UNORM_SRGB: return DXGI_FORMAT_BC3_UNORM;
+        case DXGI_FORMAT_BC4_TYPELESS: case DXGI_FORMAT_BC4_UNORM: case DXGI_FORMAT_BC4_SNORM: return DXGI_FORMAT_BC4_UNORM;
+        case DXGI_FORMAT_BC5_TYPELESS: case DXGI_FORMAT_BC5_UNORM: case DXGI_FORMAT_BC5_SNORM: return DXGI_FORMAT_BC5_UNORM;
+        case DXGI_FORMAT_BC7_TYPELESS: case DXGI_FORMAT_BC7_UNORM: case DXGI_FORMAT_BC7_UNORM_SRGB: return DXGI_FORMAT_BC7_UNORM;
+        default: return f;
+    }
+}
 
 void (*g_log)(const std::string&) = nullptr;
 std::wstring g_capture_path;
@@ -99,59 +118,10 @@ std::string Ptr(const void* p) {
     return b;
 }
 
-// ---- lock-free insert-only pointer -> int map ----
-
-template <size_t kSlots>  // power of two
-class PtrMap {
-public:
-    void Set(void* key, int value) {
-        size_t i = Hash(key);
-        for (size_t n = 0; n < kSlots; ++n, i = (i + 1) & (kSlots - 1)) {
-            void* cur = keys_[i].load(std::memory_order_acquire);
-            if (cur == key) {
-                values_[i].store(value, std::memory_order_release);
-                return;
-            }
-            if (!cur) {
-                values_[i].store(value, std::memory_order_relaxed);
-                void* expected = nullptr;
-                if (keys_[i].compare_exchange_strong(expected, key, std::memory_order_acq_rel)) {
-                    count_.fetch_add(1, std::memory_order_relaxed);
-                    return;
-                }
-                if (expected == key) {
-                    values_[i].store(value, std::memory_order_release);
-                    return;
-                }
-            }
-        }
-        full_.store(true, std::memory_order_relaxed);
-    }
-    int Get(const void* key) const {
-        if (!key) return 0;
-        size_t i = Hash(key);
-        for (size_t n = 0; n < kSlots; ++n, i = (i + 1) & (kSlots - 1)) {
-            void* cur = keys_[i].load(std::memory_order_acquire);
-            if (cur == key) return values_[i].load(std::memory_order_relaxed);
-            if (!cur) return 0;
-        }
-        return 0;
-    }
-    int Count() const { return count_.load(); }
-    bool Full() const { return full_.load(); }
-
-private:
-    static size_t Hash(const void* p) {
-        return static_cast<size_t>((reinterpret_cast<uintptr_t>(p) >> 4) * 0x9E3779B97F4A7C15ull) & (kSlots - 1);
-    }
-    std::atomic<void*> keys_[kSlots] = {};
-    std::atomic<int> values_[kSlots] = {};
-    std::atomic<int> count_{0};
-    std::atomic<bool> full_{false};
-};
+// ---- pointer -> int maps (src/ptr_map.h), emptied as D3D objects die ----
 
 // Texture candidates: value = 1 + index into g_cands (0 = not a candidate).
-PtrMap<16384> g_cand_map;
+PtrMap<32768> g_cand_map;
 // Tire views: value = catalog id (0 = not a tire view).
 PtrMap<8192> g_srv_map;
 
@@ -164,14 +134,18 @@ struct Candidate {
     std::vector<void*> srvs;
 };
 
-// Rare-path state, all under g_mutex.
-std::mutex g_mutex;
-std::vector<Candidate> g_cands;
+// Rare-path state, all under g_mutex. Recursive: a tracked texture may die
+// (and its watcher below run) on a thread that already holds it.
+std::recursive_mutex g_mutex;
+std::vector<Candidate> g_cands;  // never grows past its reserve: FindCand hands out pointers
+std::vector<int> g_free_cands;   // indices in g_cands whose texture died, for reuse
 std::map<std::pair<void*, UINT>, std::pair<void*, UINT>> g_open_maps;  // (res, sub) -> (pData, RowPitch)
 std::map<std::pair<void*, UINT>, int> g_staging_ids;                   // (res, sub) -> catalog id (0 = unknown)
 int g_detail_logged[kCtxFnCount] = {};
 int g_unmatched_logged = 0;
+constexpr size_t kMaxCands = 16384;  // live candidates (half of g_cand_map's slots)
 
+std::atomic<int> g_cand_freed{0}, g_watch_failed{0}, g_cand_skipped{0};
 std::atomic<int> g_cand_default{0}, g_cand_staging{0}, g_cand_other{0}, g_cand_with_data{0};
 std::atomic<int> g_recognised{0}, g_unmatched{0}, g_partial_updates{0};
 std::atomic<int> g_path_count[kCtxFnCount] = {};  // uploads touching a candidate, per function
@@ -213,6 +187,82 @@ int MatchRows(const Candidate& c, UINT mip, const void* data, UINT row_pitch) {
 Candidate* FindCand(const void* res) {
     const int v = g_cand_map.Get(res);
     return v ? &g_cands[v - 1] : nullptr;
+}
+
+// ---- forgetting textures and views when the game destroys them ----
+//
+// A COM object stored with SetPrivateDataInterface is released when the D3D
+// object is destroyed; its last Release tells us. Without this the maps kept
+// every texture the game ever streamed in (FPS 100 -> 30 after an hour, vega
+// 159).
+class DeathWatch final : public IUnknown {
+public:
+    using Fn = void (*)(void* object, int index);
+    DeathWatch(Fn fn, void* object, int index) : fn_(fn), object_(object), index_(index) {}
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** out) override {
+        if (!out) return E_POINTER;
+        if (riid == __uuidof(IUnknown)) {
+            *out = this;
+            AddRef();
+            return S_OK;
+        }
+        *out = nullptr;
+        return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
+    ULONG STDMETHODCALLTYPE Release() override {
+        const ULONG n = --refs_;
+        if (!n) {
+            if (armed_) fn_(object_, index_);
+            delete this;
+        }
+        return n;
+    }
+    void Arm() { armed_ = true; }
+
+private:
+    std::atomic<ULONG> refs_{1};
+    bool armed_ = false;  // only once the D3D object holds it
+    Fn fn_;
+    void* object_;
+    int index_;
+};
+
+// {6F2B6E4A-3C1D-4E8B-9A57-2D9C1B7E5F30}
+const GUID kWatchGuid = {0x6f2b6e4a, 0x3c1d, 0x4e8b, {0x9a, 0x57, 0x2d, 0x9c, 0x1b, 0x7e, 0x5f, 0x30}};
+
+void Watch(ID3D11DeviceChild* object, DeathWatch::Fn fn, int index) {
+    auto* w = new DeathWatch(fn, object, index);
+    if (SUCCEEDED(object->SetPrivateDataInterface(kWatchGuid, w))) w->Arm();
+    else g_watch_failed.fetch_add(1);
+    w->Release();
+}
+
+// Views die before their texture (a view holds a reference to it).
+void OnViewDeath(void* srv, int index) {
+    g_srv_map.Erase(srv);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
+    auto& srvs = g_cands[index].srvs;
+    for (size_t i = 0; i < srvs.size(); ++i)
+        if (srvs[i] == srv) {
+            srvs[i] = srvs.back();
+            srvs.pop_back();
+            break;
+        }
+}
+
+void OnTextureDeath(void* tex, int index) {
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
+    if (g_cand_map.Get(tex) == index + 1) g_cand_map.Erase(tex);
+    for (auto it = g_open_maps.begin(); it != g_open_maps.end();)
+        it = it->first.first == tex ? g_open_maps.erase(it) : std::next(it);
+    for (auto it = g_staging_ids.begin(); it != g_staging_ids.end();)
+        it = it->first.first == tex ? g_staging_ids.erase(it) : std::next(it);
+    Candidate& c = g_cands[index];
+    if (c.tex != tex) return;
+    c = Candidate{};
+    g_free_cands.push_back(index);
+    g_cand_freed.fetch_add(1, std::memory_order_relaxed);
 }
 
 // The address may have been reused by another resource (a buffer, another
@@ -655,7 +705,7 @@ ID3D11ShaderResourceView* BurstView(int id, int level, int key, float side_angle
     TireInfo& ti = g_tires[id];
     if (ti.burst_key.load(std::memory_order_acquire) == key)
         return ti.burst.Ready() ? ti.burst.srv.load(std::memory_order_acquire) : nullptr;
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
     if (ti.burst.failed || ti.orig.empty() || !ti.level[1].tex) return nullptr;
     for (const MipData& md : ti.orig)
         if (md.data.empty()) return nullptr;  // not every mip seen yet
@@ -858,8 +908,12 @@ void WriteCapture(ID3D11DeviceContext* ctx) {
 // ---- device detours ----
 
 bool IsCandidateShape(const D3D11_TEXTURE2D_DESC* d) {
-    return BlockBytes(d->Format) && d->ArraySize == 1 && d->Width == d->Height &&
-           (d->Width == 256 || d->Width == 512 || d->Width == 1024);
+    if (!BlockBytes(d->Format) || d->ArraySize != 1 || d->Width != d->Height) return false;
+    const std::pair<uint32_t, uint32_t> shape{d->Width, FormatFamily(d->Format)};
+    for (const auto& s : g_shapes)
+        if (s == shape) return true;
+    g_cand_skipped.fetch_add(1, std::memory_order_relaxed);
+    return false;
 }
 
 HRESULT STDMETHODCALLTYPE HookCreateTexture2D(ID3D11Device* dev, const D3D11_TEXTURE2D_DESC* d,
@@ -870,28 +924,42 @@ HRESULT STDMETHODCALLTYPE HookCreateTexture2D(ID3D11Device* dev, const D3D11_TEX
         if (g_cand_map.Get(*out)) g_cand_map.Set(*out, 0);  // address reused by another texture
         return hr;
     }
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_cands.size() >= g_cands.capacity()) {
-        // Growing would move the entries other threads point at: stop adding.
-        if (g_cand_map.Get(*out)) g_cand_map.Set(*out, 0);
-        static bool logged = false;
-        if (!logged) {
-            logged = true;
-            Log("candidate table full; newer textures are not tracked");
+    int index = -1;
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_mutex);
+        if (!g_free_cands.empty()) {
+            index = g_free_cands.back();
+            g_free_cands.pop_back();
+        } else if (g_cands.size() < g_cands.capacity()) {
+            // Growing would move the entries other threads point at: never past the reserve.
+            index = static_cast<int>(g_cands.size());
+            g_cands.emplace_back();
         }
-        return hr;
+        if (index >= 0 && !g_cand_map.Set(*out, index + 1)) {
+            g_free_cands.push_back(index);
+            index = -1;
+        }
+        if (index < 0) {
+            g_cand_map.Erase(*out);  // address reused by another texture
+            static bool logged = false;
+            if (!logged) {
+                logged = true;
+                Log("candidate table full; newer textures are not tracked");
+            }
+            return hr;
+        }
+        Candidate& cand = g_cands[index];
+        cand = Candidate{*out, d->Width, d->Height, d->MipLevels ? d->MipLevels : 1, d->Format, d->Usage};
+        (d->Usage == D3D11_USAGE_DEFAULT ? g_cand_default
+         : d->Usage == D3D11_USAGE_STAGING ? g_cand_staging
+                                           : g_cand_other)
+            .fetch_add(1);
+        if (init && init->pSysMem) {
+            g_cand_with_data.fetch_add(1);
+            if (int id = MatchRows(cand, 0, init->pSysMem, init->SysMemPitch)) Recognise(cand, id, "CreateTexture2D");
+        }
     }
-    Candidate c{*out, d->Width, d->Height, d->MipLevels ? d->MipLevels : 1, d->Format, d->Usage};
-    (d->Usage == D3D11_USAGE_DEFAULT ? g_cand_default : d->Usage == D3D11_USAGE_STAGING ? g_cand_staging
-                                                                                         : g_cand_other)
-        .fetch_add(1);
-    g_cands.push_back(std::move(c));
-    g_cand_map.Set(*out, static_cast<int>(g_cands.size()));
-    Candidate& cand = g_cands.back();
-    if (init && init->pSysMem) {
-        g_cand_with_data.fetch_add(1);
-        if (int id = MatchRows(cand, 0, init->pSysMem, init->SysMemPitch)) Recognise(cand, id, "CreateTexture2D");
-    }
+    Watch(*out, &OnTextureDeath, index);
     return hr;
 }
 
@@ -900,9 +968,12 @@ HRESULT STDMETHODCALLTYPE HookCreateSrv(ID3D11Device* dev, ID3D11Resource* res,
     const HRESULT hr = g_orig_create_srv(dev, res, d, out);
     if (FAILED(hr) || !out || !*out || !g_active.load(std::memory_order_relaxed)) return hr;
     if (Candidate* c = FindCand(res)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        c->srvs.push_back(*out);
-        g_srv_map.Set(*out, c->tire_id);
+        {
+            std::lock_guard<std::recursive_mutex> lock(g_mutex);
+            c->srvs.push_back(*out);
+            g_srv_map.Set(*out, c->tire_id);  // 0 (not a tire yet) erases any old entry
+        }
+        Watch(*out, &OnViewDeath, static_cast<int>(c - g_cands.data()));
     } else if (g_srv_map.Get(*out)) {
         g_srv_map.Set(*out, 0);  // view address reused for something else
     }
@@ -1032,7 +1103,7 @@ void OnUpdate(int fn, ID3D11Resource* dst, UINT sub, const D3D11_BOX* box, const
     Candidate* c = FindCand(dst);
     if (!c || !data || !StillCandidate(dst, *c)) return;
     g_path_count[fn].fetch_add(1);
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
     const UINT mip = sub % c->mips;
     const UINT w = (c->width >> mip) ? (c->width >> mip) : 1, h = (c->height >> mip) ? (c->height >> mip) : 1;
     // The game passes an explicit box even for whole mips; BC boxes may be
@@ -1059,7 +1130,7 @@ void OnMapped(ID3D11Resource* res, UINT sub, const D3D11_MAPPED_SUBRESOURCE* m) 
     Candidate* c = FindCand(res);
     if (!c || !m || !m->pData || !StillCandidate(res, *c)) return;
     g_path_count[kMap].fetch_add(1);
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
     LogDetail(kMap, "res " + Ptr(res) + " " + std::to_string(c->width) + "px usage " + std::to_string(c->usage) +
                         " sub " + std::to_string(sub));
     g_open_maps[{res, sub}] = {m->pData, m->RowPitch};
@@ -1068,7 +1139,7 @@ void OnMapped(ID3D11Resource* res, UINT sub, const D3D11_MAPPED_SUBRESOURCE* m) 
 void OnUnmap(ID3D11Resource* res, UINT sub) {
     Candidate* c = FindCand(res);
     if (!c) return;
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
     auto it = g_open_maps.find({res, sub});
     if (it == g_open_maps.end()) return;
     const int id = MatchRows(*c, sub % c->mips, it->second.first, it->second.second);
@@ -1081,7 +1152,7 @@ void OnCopy(int fn, ID3D11Resource* dst, UINT dst_sub, ID3D11Resource* src, UINT
     Candidate* c = FindCand(dst);
     if (!c || !StillCandidate(dst, *c)) return;
     g_path_count[fn].fetch_add(1);
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::recursive_mutex> lock(g_mutex);
     std::string src_text = "src " + Ptr(src);
     if (Candidate* s = FindCand(src)) src_text += " (candidate, usage " + std::to_string(s->usage) + ")";
     else {
@@ -1230,6 +1301,8 @@ int LoadCatalog(const std::wstring& csv_path, std::string* error) {
         e.width = static_cast<uint32_t>(std::stoul(f[2]));
         e.format = static_cast<uint32_t>(std::stoul(f[4]));
         g_catalog.push_back(e);
+        const std::pair<uint32_t, uint32_t> shape{e.width, FormatFamily(e.format)};
+        if (std::find(g_shapes.begin(), g_shapes.end(), shape) == g_shapes.end()) g_shapes.push_back(shape);
         const int id = static_cast<int>(g_catalog.size());
         std::stringstream hs(f[10]);
         std::string hex;
@@ -1242,7 +1315,7 @@ int LoadCatalog(const std::wstring& csv_path, std::string* error) {
         *error = "catalog is empty";
         return -1;
     }
-    g_cands.reserve(16384);  // keeps Candidate* stable (the map holds indices, FindCand returns pointers)
+    g_cands.reserve(kMaxCands);  // keeps Candidate* stable (the map holds indices, FindCand returns pointers)
     g_tires.reset(new TireInfo[g_catalog.size() + 1]);
     for (size_t i = 0; i < g_catalog.size(); ++i)
         g_tires[i + 1].trailer = g_catalog[i].name.find("/trailer_owned/") != std::string::npos;
@@ -1416,18 +1489,20 @@ std::string Stats() {
     const uint64_t d0 = g_draws[0].load(), d1 = g_draws[1].load();
     const uint64_t df = frames - g_stats_frames0;
     const auto per = [df](uint64_t now, uint64_t before) { return df ? double(now - before) / df : 0.0; };
-    char b[600];
+    char b[800];
     snprintf(b, sizeof(b),
              "tires: candidates default %d staging %d other %d (with initial data %d), recognised %d, unmatched "
              "hashes %d, partial boxes %d, tire views %d; uploads to candidates: UpdateSubresource %d, UpdateSubresource1 %d, Map %d, "
              "CopyResource %d, CopySubresourceRegion %d; contexts imm %d def %d; per frame: %.0f imm draws, %.0f "
-             "def draws, %.1f tire draws, %.1f swapped; clones %d%s",
+             "def draws, %.1f tire draws, %.1f swapped; clones %d; live candidates %d, freed %d, map rebuilds %d/%d, "
+             "watch failures %d; skipped (not a catalog shape) %d%s",
              g_cand_default.load(), g_cand_staging.load(), g_cand_other.load(), g_cand_with_data.load(),
              g_recognised.load(), g_unmatched.load(), g_partial_updates.load(), g_srv_map.Count(), g_path_count[kUpdateSubresource].load(),
              g_path_count[kUpdateSubresource1].load(), g_path_count[kMap].load(), g_path_count[kCopyResource].load(),
              g_path_count[kCopySubresourceRegion].load(), g_ctx_imm.load(), g_ctx_def.load(),
              per(d0, g_stats_draws0[0]), per(d1, g_stats_draws0[1]), per(tire, g_stats_tire0),
-             per(swapped, g_stats_swapped0), g_clones_made.load(),
+             per(swapped, g_stats_swapped0), g_clones_made.load(), g_cand_map.Count(), g_cand_freed.load(),
+             g_cand_map.Rebuilds(), g_srv_map.Rebuilds(), g_watch_failed.load(), g_cand_skipped.load(),
              g_cand_map.Full() || g_srv_map.Full() ? " [TABLE FULL]" : "");
     std::string out = b;
     if (g_separate) {
