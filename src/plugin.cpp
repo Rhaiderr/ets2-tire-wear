@@ -35,15 +35,18 @@
 #include "ffb.h"
 #include "notice.h"
 #include "overlay.h"
+#include "payment.h"
 #include "player_tracker.h"
 #include "present_probe.h"
 #include "tire_audio.h"
 #include "tire_probe.h"
+#include "trigger_probe.h"
 
 namespace {
 
 constexpr int kMaxTrailers = SCS_TELEMETRY_trailers_count;
 constexpr double kLogIntervalSec = 1.0;
+constexpr int kFineTestAfterSec = 15;  // T3-M3: test fine this long after the first unpaused frame
 
 struct State {
     scs_log_t log = nullptr;
@@ -78,6 +81,13 @@ struct State {
     std::chrono::steady_clock::time_point last_mp_check{};
     std::chrono::steady_clock::time_point last_frame{};
     double test_drive_s = 0.0;
+    // T3: the game's payment function, and the M3 test: [fine] test_amount
+    // taken once, some seconds into driving (0 = off).
+    payment::Located pay;
+    bool economy_logged = false;
+    int fine_test_amount = 0;
+    bool fine_test_done = false;
+    bool trigger_log = false;  // T3-B2: [fine] trigger_log, watch the map's trigger actions
     bool test_done = false;
     // E2: the effect of a blown tire, fed back as driver input.
     bool steerable[tracker::kMaxUnits][tracker::kMaxWheels] = {};
@@ -250,6 +260,17 @@ std::string ValueText(const scs_value_t& v) {
         case SCS_VALUE_TYPE_string: return v.value_string.value ? v.value_string.value : "";
         default: return "?";
     }
+}
+
+// T3-B2: every gameplay event (tollgate, fine, delivery...) with its
+// attributes, to see what a customs check reports.
+SCSAPI_VOID OnGameplay(const scs_event_t, const void* info, const scs_context_t) {
+    const auto* ev = static_cast<const scs_telemetry_gameplay_event_t*>(info);
+    if (!ev || !ev->id) return;
+    std::string text = std::string("gameplay: ") + ev->id;
+    for (const scs_named_value_t* a = ev->attributes; a && a->name; ++a)
+        text += std::string(", ") + a->name + " = " + ValueText(a->value);
+    Log(SCS_LOG_TYPE_message, text);
 }
 
 // Keeps the truck and trailer configurations (wheel positions, hook...).
@@ -662,8 +683,42 @@ SCSAPI_VOID OnFrameEnd(const scs_event_t, const void*, const scs_context_t) {
         g.probe_seen_unpaused = true;
         g.probe_first_unpaused = now;
     }
+    if (g.pay.ok && !g.economy_logged && payment::Economy(g.pay)) {
+        g.economy_logged = true;
+        Log(SCS_LOG_TYPE_message, "payment: economy ready (profile loaded)");
+    }
+    if (g.trigger_log) {
+        for (const trigger_probe::Action& a : trigger_probe::Drain()) {
+            char msg[200];
+            const auto& p = g.truck_placement.position;
+            snprintf(msg, sizeof(msg), "trigger: action type %d, truck at (%.1f %.1f %.1f), %.0f km/h%s", a.type, p.x,
+                     p.y, p.z, g.speed_ms * 3.6f, g.paused ? ", paused" : "");
+            Log(SCS_LOG_TYPE_message, msg);
+        }
+    }
     const double unpaused_for =
         g.probe_seen_unpaused ? std::chrono::duration<double>(now - g.probe_first_unpaused).count() : -1.0;
+    // T3-M3: the one-off test fine, on the game's thread (this callback).
+    if (g.fine_test_amount > 0 && !g.fine_test_done && g.economy_logged && !g.paused &&
+        unpaused_for >= kFineTestAfterSec) {
+        g.fine_test_done = true;
+        if (InMultiplayer()) {
+            Log(SCS_LOG_TYPE_message, "fine: test skipped (multiplayer)");
+        } else {
+            const int64_t before = payment::Balance(g.pay);
+            const payment::Result r = payment::Take(g.pay, g.fine_test_amount);
+            const int64_t after = payment::Balance(g.pay);
+            const char* what = r == payment::Result::kTaken ? "taken" : r == payment::Result::kRefused ? "refused by the game"
+                                                                                                    : "not called";
+            Log(SCS_LOG_TYPE_message, "fine: test " + std::to_string(g.fine_test_amount) + " " + what + ", bank " +
+                                          std::to_string(before) + " -> " + std::to_string(after));
+            if (r == payment::Result::kTaken) {
+                const std::string amount = (g.ats ? "$" : "\xE2\x82\xAC") + std::to_string(g.fine_test_amount);
+                notice::Show(g.lang_pt ? "Multa de teste" : "Test fine",
+                             (g.lang_pt ? "Descontado da conta: " : "Taken from the bank: ") + amount);
+            }
+        }
+    }
     if (g.probe_cfg.probe && !g.probe_started && unpaused_for >= g.probe_cfg.delay_sec) {
         g.probe_started = true;
         present_probe::Start(TireWearDir(), g.probe_cfg);
@@ -755,6 +810,8 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     p->register_for_event(SCS_TELEMETRY_EVENT_paused, OnPause, nullptr);
     p->register_for_event(SCS_TELEMETRY_EVENT_started, OnPause, nullptr);
     p->register_for_event(SCS_TELEMETRY_EVENT_configuration, OnConfig, nullptr);
+    if (p->register_for_event(SCS_TELEMETRY_EVENT_gameplay, OnGameplay, nullptr) != SCS_RESULT_ok)
+        Log(SCS_LOG_TYPE_warning, "gameplay events not registered");
 
     auto reg = p->register_for_channel;
     RegisterChannel(reg, SCS_TELEMETRY_TRUCK_CHANNEL_speed, SCS_VALUE_TYPE_float, OnFloat, &g.speed_ms);
@@ -806,6 +863,15 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     g.lang_pt = GameLanguagePt();
     Log(SCS_LOG_TYPE_message, std::string("notice language: ") + (g.lang_pt ? "Portuguese" : "English"));
     LoadBlowoutParams();
+    g.pay = payment::Locate();
+    Log(g.pay.ok ? SCS_LOG_TYPE_message : SCS_LOG_TYPE_warning,
+        std::string("payment: ") + (g.pay.ok ? "found, " : "not found, fines off: ") + g.pay.detail);
+    g.fine_test_amount = std::clamp(static_cast<int>(GetPrivateProfileIntW(L"fine", L"test_amount", 0, ini.c_str())), 0, 100);
+    if (g.fine_test_amount > 0)
+        Log(SCS_LOG_TYPE_message, "fine: test mode, takes " + std::to_string(g.fine_test_amount) + " once, " +
+                                      std::to_string(kFineTestAfterSec) + " s after the first unpaused frame");
+    g.trigger_log = GetPrivateProfileIntW(L"fine", L"trigger_log", 0, ini.c_str()) == 1;
+    if (g.trigger_log) Log(SCS_LOG_TYPE_message, "trigger log: " + trigger_probe::Start());
     if (g.ffb) ffb::Start(g.ffb_invert, g.ffb_device);
     FlushProbeMessages();
     if (g_blowout.Load(TireWearDir() + L"\\blowout_state.txt")) Log(SCS_LOG_TYPE_message, "blowout: state loaded");
@@ -835,6 +901,7 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
 SCSAPI_VOID scs_telemetry_shutdown(void) {
     tire_audio::Stop();
     ffb::Stop();
+    trigger_probe::Stop();
     present_probe::Stop();
     FlushProbeMessages();
     if (g.csv) {
