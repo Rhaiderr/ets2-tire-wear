@@ -13,7 +13,7 @@
 
 ---
 
-**Title:** [ETS2/ATS 1.61] Tire Wear & Blowouts plugin (worn tread, tire blowouts, force feedback pull) - 0.3.1 beta
+**Title:** [ETS2/ATS 1.61] Tire Wear & Blowouts plugin (worn tread, tire blowouts, force feedback pull) - 0.3.2 beta
 
 Hi everyone,
 
@@ -27,7 +27,7 @@ I have released **ETS2 & ATS Tire Wear**, a free, open-source plugin (SCS Teleme
 [GIF/video: blowout]
 
 **Status and honest limits**
-- Beta 0.3.1. Tested on **ETS2 1.61 and ATS 1.61**, DirectX 11, Windows, with the **keyboard** and a **Logitech G923** only.
+- Beta 0.3.2. Tested on **ETS2 1.61 and ATS 1.61**, DirectX 11, Windows, with the **keyboard** and a **Logitech G923** only.
 - **Tire mods are not supported** (modded tires keep their original look; nothing breaks).
 - **TruckersMP not tested** (blowouts turn themselves off in Convoy and TruckersMP).
 

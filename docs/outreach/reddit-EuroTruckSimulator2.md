@@ -17,7 +17,7 @@ It also adds tire blowouts: from 60% wear a tire can blow while driving, with a 
 
 [GIF/video here]
 
-Honest status: beta 0.3.1, tested on ETS2 1.61 and ATS 1.61 with keyboard and a Logitech G923 only. Tire mods aren't supported yet, and TruckersMP is untested.
+Honest status: beta 0.3.2, tested on ETS2 1.61 and ATS 1.61 with keyboard and a Logitech G923 only. Tire mods aren't supported yet, and TruckersMP is untested.
 
 **Looking for testers with other wheels** (Thrustmaster, Fanatec, Moza...): https://github.com/Rhaiderr/ets2-tire-wear/issues/1
 

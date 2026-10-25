@@ -246,7 +246,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
    ```
 3. The DLL ends up in `build\out\ets2_tire_wear.dll`. To build the release zip:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.1-beta
+   powershell -File tools\package.ps1 -Version 0.3.2-beta
    ```
 
 ### Layout

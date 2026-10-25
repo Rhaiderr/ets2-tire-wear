@@ -1,7 +1,7 @@
 # Builds the release zip: the DLL (catalog, font and sounds built in), the
 # settings file to put next to it, the read-me, LICENSE (MIT) and
 # THIRD_PARTY_LICENSES (notices of what is built in, the font's OFL included).
-# Usage: tools\package.ps1 -Version 0.3.0-beta
+# Usage: tools\package.ps1 -Version 0.3.2-beta
 # Writes dist\ets2-tire-wear.zip (a fixed name, so the README's
 # "releases/latest/download/ets2-tire-wear.zip" link always works) and a copy
 # named with the version.
