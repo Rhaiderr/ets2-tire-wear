@@ -275,7 +275,7 @@ Para sentir a perda de eficiência dos freios numa descida, veja o [Brake Fade](
 
 Faço plugins de realismo gratuitos e de código aberto para Euro Truck Simulator 2 e American Truck Simulator, feitos e mantidos no meu tempo livre. Se você gosta deles e quer apoiar novas versões e atualizações, você pode ajudar:
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+<a href="https://buymeacoffee.com/leonardoarouck"><img src="https://rhaiderr.github.io/mod-hub/assets/buy-me-a-coffee.png" alt="Apoie o projeto no Buy Me a Coffee" width="168"></a>
 
 ## Licenças e créditos
 

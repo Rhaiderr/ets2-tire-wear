@@ -277,7 +277,7 @@ For brake overheating and fade on long descents, see [Brake Fade](https://github
 
 I make free, open-source realism plugins for Euro Truck Simulator 2 and American Truck Simulator, built and maintained in my spare time. If you enjoy them and want to support new releases and updates, you can help:
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+<a href="https://buymeacoffee.com/leonardoarouck"><img src="https://rhaiderr.github.io/mod-hub/assets/buy-me-a-coffee.png" alt="Buy Me a Coffee" width="168"></a>
 
 ## Licences and credits
 
