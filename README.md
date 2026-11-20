@@ -17,7 +17,7 @@
 
 **Install:** copy **both files** from the zip, `ets2_tire_wear.dll` and `ets2_tire_wear.ini`, into `<game folder>\bin\win_x64\plugins\` (ETS2 or ATS) and start the game ([details](#installation)).
 
-> **Stable release.** Tested on ETS2 1.61 and ATS 1.61, on the keyboard and a Logitech G923 wheel. Use it in single player, and back up your profile if you want to be extra safe.
+> **Stable release.** Tested on ETS2 1.61 and 1.62 and on ATS 1.61, on the keyboard and a Logitech G923 wheel. Use it in single player, and back up your profile if you want to be extra safe.
 
 > **Tires can blow out.** From 60% wear, a tire may blow while you drive: the truck pulls to one side and is held to 60 km/h until you replace the tires. This is on by default. To turn it off, set `[blowout] enabled = 0` in the INI ([details](#tire-blowouts)).
 
@@ -128,7 +128,7 @@ On a force feedback wheel, the pull is a **force on the wheel itself**: it turns
 
 | Item | Status |
 |---|---|
-| Games | ETS2 **1.61** and ATS **1.61** (the only versions tested). The same DLL works in both: it checks which game loaded it |
+| Games | ETS2 **1.61** and **1.62**, ATS **1.61** (the only versions tested). The same DLL works in both: it checks which game loaded it |
 | OS | Windows 10/11 64-bit |
 | Renderer | **DirectX 11**; other modes are untested |
 | Tires (ETS2) | All 33 texture pairs of the base game and the **Goodyear** and **Michelin** tire DLCs |
@@ -154,6 +154,8 @@ That's all: the tire catalogues of both games are built into the DLL, and the se
 Wear shows up as the tires wear in your save; a new tire looks unchanged. To see the effect right away, use `wear_override` (next section).
 
 **Uninstall:** delete `ets2_tire_wear.dll` and `ets2_tire_wear.ini` from the `plugins` folder and the `Documents\<game>\TireWear` folder.
+
+In game, **Shift+F12** opens the plugins menu (Tire Wear and Mod Hub tabs) with the blowout, effect and force feedback settings. **Apply** saves them to the INI; **Restore defaults** resets this plugin only.
 
 ## Settings
 
@@ -210,6 +212,7 @@ Any other key can be added to its section; a missing key takes its normal value.
 | `[effect]` | `visual` | `1` | Shredded tire on the blown wheel |
 | `[tires]` | `capture` | `0` | Diagnosis: writes the data of the drawn wheels to a `tire_capture_*.txt` file |
 | `[tires]` | `tint_test` | `0` | Diagnosis: paints swapped tires magenta |
+| `[debug]` | `csv` | `0` | Diagnosis: `1` writes the per-second report `tire_wear_log.csv` |
 | `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | `0` turns parts of the plugin off: leave them alone |
 
 ## Known limitations
@@ -251,7 +254,7 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
    ```
 3. The DLL ends up in `build\out\ets2_tire_wear.dll`. To build the release zip:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.2
+   powershell -File tools\package.ps1 -Version 0.3.3
    ```
 
 ### Layout

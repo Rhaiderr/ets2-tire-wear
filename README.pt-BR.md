@@ -17,7 +17,7 @@
 
 **Instalar:** copie os **dois arquivos** do zip, `ets2_tire_wear.dll` e `ets2_tire_wear.ini`, para `<pasta do jogo>\bin\win_x64\plugins\` (ETS2 ou ATS) e abra o jogo ([detalhes](#instalação)).
 
-> **Versão estável.** Testada no ETS2 1.61 e no ATS 1.61, no teclado e num volante Logitech G923. Use em single player e faça backup do seu perfil se quiser segurança extra.
+> **Versão estável.** Testada no ETS2 1.61 e 1.62 e no ATS 1.61, no teclado e num volante Logitech G923. Use em single player e faça backup do seu perfil se quiser segurança extra.
 
 > **Os pneus podem estourar.** A partir de 60% de desgaste, um pneu pode estourar enquanto você dirige: o caminhão puxa para o lado e fica limitado a 60 km/h até você trocar os pneus. Isso vem ligado. Para desligar, use `[blowout] enabled = 0` no INI ([detalhes](#estouro-de-pneu)).
 
@@ -126,7 +126,7 @@ Com um volante com force feedback, a puxada é uma **força no próprio volante*
 
 | Item | Situação |
 |---|---|
-| Jogos | ETS2 **1.61** e ATS **1.61** (únicas versões testadas). A mesma DLL serve nos dois: ela vê qual jogo a carregou |
+| Jogos | ETS2 **1.61** e **1.62**, ATS **1.61** (únicas versões testadas). A mesma DLL serve nos dois: ela vê qual jogo a carregou |
 | Sistema | Windows 10/11 64 bits |
 | Renderização | **DirectX 11**; outros modos não foram testados |
 | Pneus (ETS2) | Os 33 pares de textura do jogo base e das DLCs de pneus **Goodyear** e **Michelin** |
@@ -152,6 +152,8 @@ Só isso: os catálogos de pneus dos dois jogos vêm dentro da DLL, e a configur
 O desgaste aparece conforme o pneu desgasta no seu save. Num pneu novo não muda nada. Para ver o efeito na hora, use `wear_override` (próxima seção).
 
 **Desinstalar:** apague `ets2_tire_wear.dll` e `ets2_tire_wear.ini` da pasta `plugins` e a pasta `Documentos\<jogo>\TireWear`.
+
+No jogo, **Shift+F12** abre o menu de plugins (abas Tire Wear e Mod Hub) com as opções de estouro, efeito e force feedback. **Aplicar** grava no INI; **Restaurar padrões** reseta só este plugin.
 
 ## Configuração
 
@@ -208,6 +210,7 @@ Qualquer outra chave pode ser acrescentada na seção certa; uma chave que falta
 | `[effect]` | `visual` | `1` | Pneu rasgado na roda estourada |
 | `[tires]` | `capture` | `0` | Diagnóstico: grava os dados das rodas desenhadas num arquivo `tire_capture_*.txt` |
 | `[tires]` | `tint_test` | `0` | Diagnóstico: pinta os pneus trocados de magenta |
+| `[debug]` | `csv` | `0` | Diagnóstico: `1` grava o relatório por segundo `tire_wear_log.csv` |
 | `[present]`, `[tires]` | `probe`, `hook`, `log` | `1` | `0` desliga partes do plugin: deixe como está |
 
 ## Limitações conhecidas
@@ -249,7 +252,7 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
    ```
 3. A DLL fica em `build\out\ets2_tire_wear.dll`. Para montar o zip de release:
    ```bash
-   powershell -File tools\package.ps1 -Version 0.3.2
+   powershell -File tools\package.ps1 -Version 0.3.3
    ```
 
 ### Estrutura
