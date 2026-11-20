@@ -2,34 +2,13 @@
 
 [English](README.md) | **Português (Brasil)**
 
-[![Baixar ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Baixar%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-apoie-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+Veja a banda de rodagem perder o desenho conforme os pneus do caminhão e das carretas se desgastam. Com o **Tire Wear**, a partir de **60% de desgaste**, um pneu pode estourar e fazer o caminhão puxar para um lado. O estouro pode ser desativado, e o efeito de força no volante foi testado no **Logitech G923**.
 
-**[⬇ Baixar a versão mais recente (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [notas da versão](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest) · [Mais mods no Mod Hub](https://rhaiderr.github.io/mod-hub/)
+**Compatibilidade:** Euro Truck Simulator 2 **1.61 e 1.62** e American Truck Simulator **1.61** testados em modo individual, no Windows 10/11 de 64 bits com DirectX 11. O desgaste visual aparece nos pneus mapeados do jogo base e de DLCs oficiais. [Consulte os pneus compatíveis](#compatibilidade).
 
-![ETS2 & ATS Tire Wear](images/projects/ets2-tire-wear.png)
+**[Baixar Tire Wear (ZIP)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [Notas da versão](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest) · [Instalação](#instalação) · [Mod Hub](https://rhaiderr.github.io/mod-hub/#tire-wear)
 
-*Arte promocional ilustrativa, não é uma captura do jogo.*
-
-> Plugin de realismo (mod) para **Euro Truck Simulator 2** e **American Truck Simulator** (ETS2 / ATS): pneus gastos (desgaste de pneu), estouro de pneu (pneu furado) e puxada no volante com force feedback. Feito sobre o SCS Telemetry SDK.
-
-<!-- TODO(GIF): colocar aqui o GIF do estouro depois de gravado, ex.: ![Um pneu estourando no ETS2](docs/images/blowout.gif) -->
-
-**Instalar:** copie os **dois arquivos** do zip, `ets2_tire_wear.dll` e `ets2_tire_wear.ini`, para `<pasta do jogo>\bin\win_x64\plugins\` (ETS2 ou ATS) e abra o jogo ([detalhes](#instalação)).
-
-> **Versão estável.** Testada no ETS2 1.61 e 1.62 e no ATS 1.61, no teclado e num volante Logitech G923. Use em single player e faça backup do seu perfil se quiser segurança extra.
-
-> **Os pneus podem estourar.** A partir de 60% de desgaste, um pneu pode estourar enquanto você dirige: o caminhão puxa para o lado e fica limitado a 60 km/h até você trocar os pneus. Isso vem ligado. Para desligar, use `[blowout] enabled = 0` no INI ([detalhes](#estouro-de-pneu)).
-
-> **Pneus de mods ainda não são compatíveis.** Só os pneus do jogo base e das DLCs oficiais (Goodyear, Michelin) ganham a aparência gasta. Se você colocar um pneu de mod, o plugin não o reconhece e o desgaste visual simplesmente não acontece: esse pneu fica com a aparência original. Nada quebra, e os outros pneus continuam funcionando.
-
-Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra os pneus do **seu** caminhão e das **suas** carretas gastos de acordo com o **desgaste real** do jogo. O jogo já calcula o desgaste de cada roda (você vê no menu de manutenção), mas o pneu continua visualmente novo. Com o plugin, a banda de rodagem vai perdendo o desenho até ficar quase lisa.
-
-![Os 8 níveis de desgaste do pneu padrão do caminhão](docs/images/niveis.png)
-
-*Pneu padrão do caminhão do ETS2 nos 8 níveis de desgaste. Imagens geradas pela ferramenta de prévia do projeto, que usa exatamente o mesmo código do plugin, com uma luz simulada.*
-
-### No jogo
+## No jogo
 
 <p align="center">
   <img src="docs/images/jogo_ets2_gasto.jpg" alt="Pneus traseiros gastos de um caminhão no ETS2" width="49%">
@@ -37,6 +16,12 @@ Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra
 </p>
 
 *Prints do jogo: pneus traseiros gastos de um caminhão no ETS2 (esquerda) e de um Western Star no ATS (direita).*
+
+![Pneu dianteiro esquerdo estourado no ETS2](docs/images/pneu_estourado_jogo.png)
+
+*No ETS2, o pneu dianteiro fica rasgado após o estouro. Veja também [o aviso no painel e o que muda na direção](#estouro-de-pneu).*
+
+Para experimentar o efeito, o ZIP inclui [configurações prontas para testar o estouro](#inis-prontos-para-testar).
 
 ## O que ele faz
 
@@ -48,6 +33,10 @@ Plugin para **Euro Truck Simulator 2** e **American Truck Simulator** que mostra
 - **Estouro de pneu**: pneus muito gastos podem estourar, com aviso, som, pneu rasgado e efeito na direção ([detalhes](#estouro-de-pneu)).
 
 ### Como o desgaste aparece
+
+![Os 8 níveis de desgaste do pneu padrão do caminhão](docs/images/niveis.png)
+
+*Pneu padrão do caminhão do ETS2 nos 8 níveis de desgaste. Imagens geradas pela ferramenta de prévia do projeto, que usa exatamente o mesmo código do plugin, com uma luz simulada.*
 
 | Desgaste | O que muda |
 |---|---|
@@ -77,6 +66,8 @@ O jogo não tem estouro de pneu, então o plugin cria um. A partir de 60% de des
 | 90% | ~700 km |
 | 100% | ~300 km |
 
+O estouro vem ativado. Com o preset padrão, o limite alvo é 60 km/h até a troca do pneu. No teclado, a intervenção é pelo freio e começa 8 km/h acima do limite. Veja [como desativar o estouro ou seus efeitos](#conserto-e-desligamento).
+
 ### Quando um pneu estoura
 
 - **Aviso** no topo da tela, no estilo dos avisos do jogo, dizendo qual pneu estourou (veículo, eixo e lado). O texto segue o idioma do jogo: português quando o jogo está em português, inglês nos outros idiomas.
@@ -86,7 +77,7 @@ O jogo não tem estouro de pneu, então o plugin cria um. A partir de 60% de des
 - **Som** do estouro e, depois, do pneu rasgado batendo no asfalto no ritmo da roda.
 - **Pneu rasgado** só na roda que estourou: a malha de aço aparece na banda de rodagem e a lateral ganha um rasgo de tamanho sorteado. Tudo isso por cima do desgaste que o pneu já tinha.
 
-  ![Pneu dianteiro esquerdo estourado no jogo, sobre um pneu já gasto](docs/images/pneu_estourado_jogo.png)
+  [Veja a captura do pneu estourado no ETS2](#no-jogo).
 
   *No jogo: pneu dianteiro esquerdo estourado num Scania, por cima de um desgaste de 86%.*
 
@@ -267,12 +258,18 @@ Requisitos: Visual Studio 2022 com C++ e CMake 3.20 ou mais novo.
 
 ## Conheça meus outros mods
 
+Para sentir a perda de eficiência dos freios numa descida, veja o [Brake Fade](https://github.com/Rhaiderr/ets2-ats-brake-fade#português-brasil).
+
 | [ETS2 & ATS Truck Dirt](https://github.com/Rhaiderr/ets2-truck-dirt) | [BR Brasil - Clima Real](https://github.com/Rhaiderr/ets2-brbrasil-climate) |
 | --- | --- |
 | [![ETS2 & ATS Truck Dirt](images/projects/ets2-truck-dirt.png)](https://github.com/Rhaiderr/ets2-truck-dirt) | [![BR Brasil - Clima Real](images/projects/ets2-brbrasil-climate.png)](https://github.com/Rhaiderr/ets2-brbrasil-climate) |
 | Poeira, lama e sujeira de estrada dinâmicas para ETS2 e ATS. | Temperaturas regionais de verão no painel para ETS2 + BR Brasil. |
 
 *Capas ilustrativas; confira os requisitos e a compatibilidade em cada projeto.*
+
+![ETS2 & ATS Tire Wear](images/projects/ets2-tire-wear.png)
+
+*Arte promocional do Tire Wear.*
 
 ## Apoie meu trabalho
 

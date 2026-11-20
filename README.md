@@ -2,34 +2,13 @@
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
-[![Download ets2-tire-wear.zip](https://img.shields.io/github/v/release/Rhaiderr/ets2-tire-wear?label=Download%20ets2-tire-wear.zip&style=for-the-badge&logo=github&color=2ea44f)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=for-the-badge&logo=buymeacoffee&logoColor=white)](https://buymeacoffee.com/leonardoarouck)
+Watch the tread wear down on your truck and trailer tires as the miles add up. With **Tire Wear**, a tire at **60% wear** or more can blow out and pull the truck to one side. You can turn off blowouts. The force feedback effect has been tested on the **Logitech G923**.
 
-**[⬇ Download the latest version (zip)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [release notes](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest) · [Find more mods on Mod Hub](https://rhaiderr.github.io/mod-hub/)
+**Compatibility:** Tested on Euro Truck Simulator 2 **1.61 and 1.62** and American Truck Simulator **1.61** in single-player mode, on 64-bit Windows 10/11 with DirectX 11. Visual wear applies to mapped tires from the base game and official DLC. [See supported tires](#compatibility).
 
-![ETS2 & ATS Tire Wear](images/projects/ets2-tire-wear.png)
+**[Download Tire Wear (ZIP)](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest/download/ets2-tire-wear.zip)** · [Release notes](https://github.com/Rhaiderr/ets2-tire-wear/releases/latest) · [Installation](#installation) · [Mod Hub](https://rhaiderr.github.io/mod-hub/#tire-wear)
 
-*Illustrative promotional artwork, not an in-game screenshot.*
-
-> Realism plugin (mod) for **Euro Truck Simulator 2** and **American Truck Simulator** (ETS2 / ATS): worn tires (tyre wear), tire blowouts (flat tire, puncture) and a force feedback pull on the wheel. Built on the SCS Telemetry SDK.
-
-<!-- TODO(GIF): put the blowout GIF here once recorded, e.g. ![A tire blowing out in ETS2](docs/images/blowout.gif) -->
-
-**Install:** copy **both files** from the zip, `ets2_tire_wear.dll` and `ets2_tire_wear.ini`, into `<game folder>\bin\win_x64\plugins\` (ETS2 or ATS) and start the game ([details](#installation)).
-
-> **Stable release.** Tested on ETS2 1.61 and 1.62 and on ATS 1.61, on the keyboard and a Logitech G923 wheel. Use it in single player, and back up your profile if you want to be extra safe.
-
-> **Tires can blow out.** From 60% wear, a tire may blow while you drive: the truck pulls to one side and is held to 60 km/h until you replace the tires. This is on by default. To turn it off, set `[blowout] enabled = 0` in the INI ([details](#tire-blowouts)).
-
-> **Tire mods are not supported yet.** Only the tires of the base game and of the official DLCs (Goodyear, Michelin) get the worn look. If you fit a tire from a mod, the plugin does not recognise it and its visual wear simply does not happen: that tire keeps its original look. Nothing breaks, and the other tires keep working.
-
-A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that makes the tires of **your** truck and **your** trailers look worn according to the game's **real wear**. The game already tracks the wear of every wheel (you can see it in the service menu), but the tire always looks brand new. With this plugin the tread gradually loses its pattern until it is almost bald.
-
-![The 8 wear levels of the default truck tire](docs/images/niveis.png)
-
-*The default ETS2 truck tire at the 8 wear levels. Images made with the project's preview tool, which runs exactly the plugin's code, under simulated lighting.*
-
-### In the game
+## In the game
 
 <p align="center">
   <img src="docs/images/jogo_ets2_gasto.jpg" alt="Worn rear tires of a truck in ETS2" width="49%">
@@ -37,6 +16,12 @@ A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that ma
 </p>
 
 *Screenshots from the game: worn rear tires of a truck in ETS2 (left) and of a Western Star in ATS (right).*
+
+![Blown front left tire in ETS2](docs/images/pneu_estourado_jogo.png)
+
+*In ETS2, the front tire is visibly torn after a blowout. See [the on-screen warning and what happens to the steering](#tire-blowouts).*
+
+To try the effect, the ZIP includes [test presets that trigger a blowout](#ready-made-test-inis).
 
 ## What it does
 
@@ -48,6 +33,10 @@ A plugin for **Euro Truck Simulator 2** and **American Truck Simulator** that ma
 - **Tire blowouts**: badly worn tires can blow, with a notice, sounds, a shredded tire and an effect on the steering ([details](#tire-blowouts)).
 
 ### How the wear looks
+
+![The 8 wear levels of the default truck tire](docs/images/niveis.png)
+
+*The default ETS2 truck tire at the 8 wear levels. Images made with the project's preview tool, which runs exactly the plugin's code, under simulated lighting.*
 
 | Wear | What changes |
 |---|---|
@@ -79,6 +68,8 @@ The game has no tire blowouts, so the plugin adds them. From 60% wear, each vehi
 | 90% | ~700 km |
 | 100% | ~300 km |
 
+Blowouts are enabled by default. The default speed target is 60 km/h until the tire is replaced. On keyboard, the plugin intervenes by braking once you're 8 km/h above the target. See [how to turn off blowouts or their effects](#repair-and-turning-it-off).
+
 ### When a tire blows
 
 - **Notice** at the top of the screen, in the style of the game's own notices, saying which tire blew (vehicle, axle and side). It follows the game's language: Portuguese when the game is in Portuguese, English for every other language.
@@ -88,7 +79,7 @@ The game has no tire blowouts, so the plugin adds them. From 60% wear, each vehi
 - **Sounds:** a bang, then the torn tire slapping the road in step with the wheel.
 - **Shredded tire** on the blown wheel only: the steel belts show through the tread and the sidewall gets a gash of random size. All of it is drawn on top of the wear the tire already had.
 
-  ![Blown front left tire in the game, on a tire that was already worn](docs/images/pneu_estourado_jogo.png)
+  [See the blown tire in ETS2](#in-the-game).
 
   *In the game: blown front left tire on a Scania, on top of 86% wear.*
 
@@ -269,12 +260,18 @@ Requirements: Visual Studio 2022 with C++, and CMake 3.20 or newer.
 
 ## Explore my other mods
 
+For brake overheating and fade on long descents, see [Brake Fade](https://github.com/Rhaiderr/ets2-ats-brake-fade).
+
 | [ETS2 & ATS Truck Dirt](https://github.com/Rhaiderr/ets2-truck-dirt) | [BR Brasil - Clima Real](https://github.com/Rhaiderr/ets2-brbrasil-climate) |
 | --- | --- |
 | [![ETS2 & ATS Truck Dirt](images/projects/ets2-truck-dirt.png)](https://github.com/Rhaiderr/ets2-truck-dirt) | [![BR Brasil - Clima Real](images/projects/ets2-brbrasil-climate.png)](https://github.com/Rhaiderr/ets2-brbrasil-climate) |
 | Dynamic dust, mud and road grime for ETS2 and ATS. | Regional summer dashboard temperatures for ETS2 + BR Brasil. |
 
 *Illustrative cover artwork; see each project for requirements and compatibility.*
+
+![ETS2 & ATS Tire Wear](images/projects/ets2-tire-wear.png)
+
+*Tire Wear promotional artwork.*
 
 ## Support my work
 
